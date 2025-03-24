@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.proyek.eatright"
-        minSdk 24
+        minSdk 26
         targetSdk 35
         versionCode 1
         versionName "1.0"
@@ -71,7 +71,10 @@ dependencies {
 
     // Other dependencies
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation libs.firebase.crashlytics.buildtools
+    implementation libs.androidx.navigation.common.android
+    implementation libs.androidx.navigation.compose
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core

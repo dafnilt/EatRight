@@ -1,6 +1,8 @@
 package com.proyek.eatright.viewmodel
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,7 +15,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 
 // ViewModel
-class FatSecretViewModel : ViewModel() {
+class FoodSearchViewModel : ViewModel() {
     private val apiService = FatSecretApiService()
 
     private val _searchQuery = mutableStateOf("")
@@ -29,6 +31,7 @@ class FatSecretViewModel : ViewModel() {
         _searchQuery.value = query
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun searchFoods() {
         viewModelScope.launch {
             try {

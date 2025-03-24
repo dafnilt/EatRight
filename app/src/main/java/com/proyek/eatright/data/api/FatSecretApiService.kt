@@ -4,7 +4,9 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import com.proyek.eatright.data.model.Food
+import com.proyek.eatright.data.model.FoodDetail
 import com.proyek.eatright.data.model.FoodSearchResponse
+import com.proyek.eatright.data.model.Serving
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -172,6 +174,157 @@ class FatSecretApiService {
         } catch (e: Exception) {
             Log.e("FatSecretApiService", "Error parsing response", e)
             return FoodSearchResponse(emptyList())
+        }
+    }
+
+    // Add this method to your FatSecretApiService class
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun getFoodDetails(foodId: String): FoodDetail? {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Current timestamp
+                val timestamp = (System.currentTimeMillis() / 1000).toString()
+
+                // Random nonce
+                val nonce = UUID.randomUUID().toString()
+
+                // Base parameters
+                val params = mapOf(
+                    "method" to "food.get.v2",
+                    "food_id" to foodId,
+                    "format" to "json",
+                    "oauth_consumer_key" to consumerKey,
+                    "oauth_signature_method" to "HMAC-SHA1",
+                    "oauth_timestamp" to timestamp,
+                    "oauth_nonce" to nonce,
+                    "oauth_version" to "1.0"
+                )
+
+                // Create signature base string
+                val baseString = createSignatureBaseString("GET", baseUrl, params)
+
+                // Generate signature
+                val signature = generateSignature(baseString, consumerSecret)
+
+                // Build URL with parameters
+                val urlBuilder = baseUrl.toHttpUrlOrNull()!!.newBuilder()
+                params.forEach { (key, value) ->
+                    urlBuilder.addQueryParameter(key, value)
+                }
+                urlBuilder.addQueryParameter("oauth_signature", signature)
+
+                val request = Request.Builder()
+                    .url(urlBuilder.build())
+                    .get()
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val errorBody = response.body?.string()
+                        Log.e("FatSecretApiService", "Detail request failed with code: ${response.code}, Body: $errorBody")
+                        return@withContext null
+                    }
+
+                    val responseData = response.body?.string() ?: throw IOException("Empty response body")
+                    Log.d("FatSecretApiService", "Raw detail response: $responseData")
+
+                    parseDetailResponse(responseData)
+                }
+            } catch (e: Exception) {
+                Log.e("FatSecretApiService", "Error fetching food details", e)
+                null
+            }
+        }
+    }
+
+    private fun parseDetailResponse(jsonString: String): FoodDetail? {
+        try {
+            val jsonObject = JSONObject(jsonString)
+
+            // Handle error response
+            if (jsonObject.has("error")) {
+                val error = jsonObject.getJSONObject("error")
+                val code = error.optInt("code")
+                val message = error.optString("message")
+                Log.e("FatSecretApiService", "API Error: Code $code, Message: $message")
+                return null
+            }
+
+            // Parse food details
+            if (jsonObject.has("food")) {
+                val foodObject = jsonObject.getJSONObject("food")
+
+                val foodId = foodObject.optString("food_id", "")
+                val foodName = foodObject.optString("food_name", "")
+                val foodType = foodObject.optString("food_type", "")
+                val foodUrl = foodObject.optString("food_url", "")
+
+                val servingsList = mutableListOf<Serving>()
+
+                if (foodObject.has("servings")) {
+                    val servingsObject = foodObject.getJSONObject("servings")
+
+                    if (servingsObject.has("serving")) {
+                        val servingArray = when {
+                            servingsObject.get("serving") is JSONArray -> servingsObject.getJSONArray("serving")
+                            else -> {
+                                val array = JSONArray()
+                                array.put(servingsObject.getJSONObject("serving"))
+                                array
+                            }
+                        }
+
+                        for (i in 0 until servingArray.length()) {
+                            try {
+                                val servingObject = servingArray.getJSONObject(i)
+
+                                val serving = Serving(
+                                    servingId = servingObject.optString("serving_id", ""),
+                                    servingDescription = servingObject.optString("serving_description", ""),
+                                    servingUrl = servingObject.optString("serving_url", ""),
+                                    metricServingAmount = servingObject.optDouble("metric_serving_amount", 0.0),
+                                    metricServingUnit = servingObject.optString("metric_serving_unit", ""),
+                                    numberOfUnits = servingObject.optDouble("number_of_units", 0.0),
+                                    measurementDescription = servingObject.optString("measurement_description", ""),
+                                    calories = servingObject.optInt("calories", 0),
+                                    carbohydrate = servingObject.optDouble("carbohydrate", 0.0),
+                                    protein = servingObject.optDouble("protein", 0.0),
+                                    fat = servingObject.optDouble("fat", 0.0),
+                                    saturatedFat = servingObject.optDouble("saturated_fat", 0.0),
+                                    polyunsaturatedFat = servingObject.optDouble("polyunsaturated_fat", 0.0),
+                                    monounsaturatedFat = servingObject.optDouble("monounsaturated_fat", 0.0),
+                                    cholesterol = servingObject.optDouble("cholesterol", 0.0),
+                                    sodium = servingObject.optDouble("sodium", 0.0),
+                                    potassium = servingObject.optDouble("potassium", 0.0),
+                                    fiber = servingObject.optDouble("fiber", 0.0),
+                                    sugar = servingObject.optDouble("sugar", 0.0),
+                                    vitaminA = servingObject.optDouble("vitamin_a", 0.0),
+                                    vitaminC = servingObject.optDouble("vitamin_c", 0.0),
+                                    calcium = servingObject.optDouble("calcium", 0.0),
+                                    iron = servingObject.optDouble("iron", 0.0)
+                                )
+
+                                servingsList.add(serving)
+                            } catch (e: Exception) {
+                                Log.e("FatSecretApiService", "Error parsing serving", e)
+                            }
+                        }
+                    }
+                }
+
+                return FoodDetail(
+                    foodId = foodId,
+                    foodName = foodName,
+                    foodType = foodType,
+                    foodUrl = foodUrl,
+                    servings = servingsList
+                )
+            }
+
+            return null
+        } catch (e: Exception) {
+            Log.e("FatSecretApiService", "Error parsing detail response", e)
+            return null
         }
     }
 }
