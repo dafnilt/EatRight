@@ -1,0 +1,55 @@
+package com.proyek.eatright
+
+import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.proyek.eatright.ui.screen.FoodDetailScreen
+import com.proyek.eatright.ui.screen.LoginScreen
+import com.proyek.eatright.ui.screen.RegisterScreen
+import com.proyek.eatright.ui.screen.SearchScreen
+import com.proyek.eatright.viewmodel.AuthViewModel
+import com.proyek.eatright.viewmodel.FoodSearchViewModel
+
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel()
+    val foodSearchViewModel: FoodSearchViewModel = viewModel()
+
+    NavHost(
+        navController = navController,
+        startDestination = "login"
+    ) {
+        composable("login") {
+            LoginScreen(navController, authViewModel)
+        }
+
+        composable("register") {
+            RegisterScreen(navController, authViewModel)
+        }
+
+        composable("main") {
+            SearchScreen(
+                onFoodClick = { foodId ->
+                    navController.navigate("food_detail/$foodId")
+                },
+                viewModel = foodSearchViewModel
+            )
+        }
+
+        composable(
+            route = "food_detail/{foodId}",
+            arguments = listOf(navArgument("foodId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val foodId = backStackEntry.arguments?.getString("foodId") ?: ""
+            FoodDetailScreen(
+                foodId = foodId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+    }
+}
