@@ -23,26 +23,13 @@ class AuthViewModel : ViewModel() {
 
     // Initialize in a safe way
     init {
-        viewModelScope.launch {
-            try {
-                val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    _authState.value = AuthState.Loading
-                    repository.getUserData(currentUser.uid).fold(
-                        onSuccess = { user ->
-                            _currentUser.value = user
-                            _authState.value = AuthState.Authenticated
-                        },
-                        onFailure = {
-                            _authState.value = AuthState.Error("Failed to load user data")
-                        }
-                    )
-                } else {
-                    _authState.value = AuthState.Unauthenticated
-                }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error initializing: ${e.message}")
-            }
+        // Force logout on app start
+        try {
+            repository.logout()
+            _currentUser.value = null
+            _authState.value = AuthState.Unauthenticated
+        } catch (e: Exception) {
+            _authState.value = AuthState.Error("Error logging out: ${e.message}")
         }
     }
 
