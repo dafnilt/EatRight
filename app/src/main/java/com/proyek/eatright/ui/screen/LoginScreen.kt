@@ -2,13 +2,7 @@ package com.proyek.eatright.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,99 +10,104 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     navController: NavController,
     viewModel: AuthViewModel
 ) {
-    val authState by viewModel.authState.collectAsState()
-
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val authState by viewModel.authState.collectAsState()
 
-    // Effect untuk menangani state
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(authState) {
-        if (authState is AuthViewModel.AuthState.Success) {
-            // Navigasi ke layar utama setelah berhasil login
-            navController.navigate("main") {
-                popUpTo("login") { inclusive = true }
+        when (authState) {
+            is AuthState.Authenticated -> {
+                navController.navigate("main") {
+                    popUpTo("login") { inclusive = true }
+                }
             }
+            is AuthState.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = (authState as AuthState.Error).message
+                )
+                viewModel.resetAuthState()
+            }
+            else -> {}
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Login",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        // Email
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Password
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Login Button
-        Button(
-            onClick = {
-                if (email.isNotBlank() && password.isNotBlank()) {
-                    viewModel.login(email, password)
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = email.isNotBlank() && password.isNotBlank() &&
-                    authState !is AuthViewModel.AuthState.Loading
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            if (authState is AuthViewModel.AuthState.Loading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Text("Login")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Register Link
-        TextButton(
-            onClick = { navController.navigate("register") }
-        ) {
-            Text("Belum punya akun? Register disini")
-        }
-
-        // Error state
-        if (authState is AuthViewModel.AuthState.Error) {
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = (authState as AuthViewModel.AuthState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium
+                text = "EatRight",
+                style = MaterialTheme.typography.headlineLarge
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Button(
+                onClick = {
+                    if (email.isNotEmpty() && password.isNotEmpty()) {
+                        viewModel.login(email, password)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (authState is AuthState.Loading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text("Login")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(
+                onClick = { navController.navigate("register") }
+            ) {
+                Text("Don't have an account? Register")
+            }
         }
     }
 }

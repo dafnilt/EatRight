@@ -10,9 +10,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Inisialisasi Firebase
-        FirebaseApp.initializeApp(this)
-
         setContent {
             EatRightTheme {
                 AppNavigation()

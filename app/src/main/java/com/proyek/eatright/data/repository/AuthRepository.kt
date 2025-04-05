@@ -8,9 +8,10 @@ import kotlinx.coroutines.tasks.await
 import java.util.*
 
 class AuthRepository {
-    private val auth = FirebaseAuth.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
-    private val usersCollection = firestore.collection("users")
+    // Use lazy initialization to ensure Firebase is available when needed
+    private val auth by lazy { FirebaseAuth.getInstance() }
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
+    private val usersCollection by lazy { firestore.collection("users") }
 
     suspend fun register(user: User): Result<FirebaseUser> {
         return try {

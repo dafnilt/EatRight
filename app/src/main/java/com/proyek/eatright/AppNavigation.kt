@@ -7,11 +7,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.proyek.eatright.ui.screen.ConsumptionSummaryScreen
 import com.proyek.eatright.ui.screen.FoodDetailScreen
 import com.proyek.eatright.ui.screen.LoginScreen
 import com.proyek.eatright.ui.screen.RegisterScreen
 import com.proyek.eatright.ui.screen.SearchScreen
 import com.proyek.eatright.viewmodel.AuthViewModel
+import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import com.proyek.eatright.viewmodel.FoodSearchViewModel
 
 @Composable
@@ -19,17 +21,24 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val foodSearchViewModel: FoodSearchViewModel = viewModel()
+    val consumptionViewModel: ConsumptionViewModel = viewModel()
 
     NavHost(
         navController = navController,
         startDestination = "login"
     ) {
         composable("login") {
-            LoginScreen(navController, authViewModel)
+            LoginScreen(
+                navController = navController,
+                viewModel = authViewModel
+            )
         }
 
         composable("register") {
-            RegisterScreen(navController, authViewModel)
+            RegisterScreen(
+                navController = navController,
+                viewModel = authViewModel
+            )
         }
 
         composable("main") {
@@ -37,7 +46,10 @@ fun AppNavigation() {
                 onFoodClick = { foodId ->
                     navController.navigate("food_detail/$foodId")
                 },
-                viewModel = foodSearchViewModel
+                viewModel = foodSearchViewModel,
+                onConsumptionSummaryClick = {
+                    navController.navigate("consumption_summary")
+                }
             )
         }
 
@@ -48,6 +60,12 @@ fun AppNavigation() {
             val foodId = backStackEntry.arguments?.getString("foodId") ?: ""
             FoodDetailScreen(
                 foodId = foodId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("consumption_summary") {
+            ConsumptionSummaryScreen(
                 onBack = { navController.popBackStack() }
             )
         }
