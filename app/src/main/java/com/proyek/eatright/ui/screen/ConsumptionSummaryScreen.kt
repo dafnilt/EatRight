@@ -13,12 +13,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.proyek.eatright.data.api.FatSecretApiService
 import com.proyek.eatright.data.model.DailyConsumption
 import com.proyek.eatright.data.model.FoodDetail
+import com.proyek.eatright.data.model.Serving
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -32,13 +33,10 @@ fun ConsumptionSummaryScreen(
     viewModel: ConsumptionViewModel = viewModel()
 ) {
     val userConsumptions by viewModel.userConsumptions.collectAsState()
+    val foodDetailsCache by viewModel.foodDetailsCache.collectAsState()
     val consumptionState by viewModel.consumptionState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val apiService = remember { FatSecretApiService() }
-
-    // State to hold fetched food details
-    val foodDetailsMap = remember { mutableStateMapOf<String, FoodDetail?>() }
 
     // Selected date state
     val selectedDate = remember { mutableStateOf(System.currentTimeMillis()) }
@@ -49,19 +47,22 @@ fun ConsumptionSummaryScreen(
         viewModel.loadUserConsumptions(selectedDate.value)
     }
 
-    // Effect to fetch food details for each consumption item
-    LaunchedEffect(userConsumptions) {
-        userConsumptions.forEach { consumption ->
-            if (!foodDetailsMap.containsKey(consumption.foodId)) {
-                coroutineScope.launch {
-                    try {
-                        val foodDetail = apiService.getFoodDetails(consumption.foodId)
-                        foodDetailsMap[consumption.foodId] = foodDetail
-                    } catch (e: Exception) {
-                        // Handle error
-                    }
-                }
+    // Effect to show snackbar when consumption state changes
+    LaunchedEffect(consumptionState) {
+        when (consumptionState) {
+            is com.proyek.eatright.viewmodel.ConsumptionState.Success -> {
+                snackbarHostState.showSnackbar(
+                    (consumptionState as com.proyek.eatright.viewmodel.ConsumptionState.Success).message
+                )
+                viewModel.resetState()
             }
+            is com.proyek.eatright.viewmodel.ConsumptionState.Error -> {
+                snackbarHostState.showSnackbar(
+                    (consumptionState as com.proyek.eatright.viewmodel.ConsumptionState.Error).message
+                )
+                viewModel.resetState()
+            }
+            else -> {}
         }
     }
 
@@ -127,6 +128,18 @@ fun ConsumptionSummaryScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Loading indicator
+            if (consumptionState is com.proyek.eatright.viewmodel.ConsumptionState.Loading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
             // Consumption list
             if (userConsumptions.isEmpty()) {
                 Box(
@@ -141,6 +154,106 @@ fun ConsumptionSummaryScreen(
                     )
                 }
             } else {
+                // Comprehensive Nutritional Totals
+                var totalCalories = 0
+                var totalCarbohydrate = 0.0
+                var totalProtein = 0.0
+                var totalFat = 0.0
+                var totalSaturatedFat = 0.0
+                var totalPolyunsaturatedFat = 0.0
+                var totalMonounsaturatedFat = 0.0
+                var totalCholesterol = 0.0
+                var totalSodium = 0.0
+                var totalPotassium = 0.0
+                var totalFiber = 0.0
+                var totalSugar = 0.0
+                var totalVitaminA = 0.0
+                var totalVitaminC = 0.0
+                var totalCalcium = 0.0
+                var totalIron = 0.0
+
+                userConsumptions.forEach { consumption ->
+                    val foodDetail = foodDetailsCache[consumption.foodId]
+                    if (foodDetail != null &&
+                        consumption.servingIndex >= 0 &&
+                        consumption.servingIndex < foodDetail.servings.size) {
+
+                        val serving = foodDetail.servings[consumption.servingIndex]
+                        val quantity = consumption.quantity
+
+                        totalCalories += serving.calories * quantity
+                        totalCarbohydrate += serving.carbohydrate * quantity
+                        totalProtein += serving.protein * quantity
+                        totalFat += serving.fat * quantity
+                        totalSaturatedFat += serving.saturatedFat * quantity
+                        totalPolyunsaturatedFat += serving.polyunsaturatedFat * quantity
+                        totalMonounsaturatedFat += serving.monounsaturatedFat * quantity
+                        totalCholesterol += serving.cholesterol * quantity
+                        totalSodium += serving.sodium * quantity
+                        totalPotassium += serving.potassium * quantity
+                        totalFiber += serving.fiber * quantity
+                        totalSugar += serving.sugar * quantity
+                        totalVitaminA += serving.vitaminA * quantity
+                        totalVitaminC += serving.vitaminC * quantity
+                        totalCalcium += serving.calcium * quantity
+                        totalIron += serving.iron * quantity
+                    }
+                }
+
+                // Nutrition Summary Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Ringkasan Nutrisi",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Macro Nutrients Summary
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            NutrientSummary(name = "Kalori", value = "${totalCalories.toInt()} kcal")
+                            NutrientSummary(name = "Karbohidrat", value = "${String.format("%.1f", totalCarbohydrate)}g")
+                            NutrientSummary(name = "Protein", value = "${String.format("%.1f", totalProtein)}g")
+                            NutrientSummary(name = "Lemak", value = "${String.format("%.1f", totalFat)}g")
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Detailed Nutrition Breakdown
+                        Column {
+                            NutritionDetailRow("Lemak Jenuh", totalSaturatedFat)
+                            NutritionDetailRow("Lemak Tak Jenuh Ganda", totalPolyunsaturatedFat)
+                            NutritionDetailRow("Lemak Tak Jenuh Tunggal", totalMonounsaturatedFat)
+                            NutritionDetailRow("Kolesterol", totalCholesterol)
+                            NutritionDetailRow("Sodium", totalSodium)
+                            NutritionDetailRow("Kalium", totalPotassium)
+                            NutritionDetailRow("Serat", totalFiber)
+                            NutritionDetailRow("Gula", totalSugar)
+                            NutritionDetailRow("Vitamin A", totalVitaminA)
+                            NutritionDetailRow("Vitamin C", totalVitaminC)
+                            NutritionDetailRow("Kalsium", totalCalcium)
+                            NutritionDetailRow("Zat Besi", totalIron)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // List of consumptions grouped by meal type
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -159,68 +272,23 @@ fun ConsumptionSummaryScreen(
                         }
 
                         items(consumptions) { consumption ->
+                            val foodDetail = foodDetailsCache[consumption.foodId]
+                            val serving = if (foodDetail != null &&
+                                consumption.servingIndex >= 0 &&
+                                consumption.servingIndex < foodDetail.servings.size) {
+                                foodDetail.servings[consumption.servingIndex]
+                            } else null
+
                             ConsumptionItem(
                                 consumption = consumption,
-                                foodDetail = foodDetailsMap[consumption.foodId],
+                                foodDetail = foodDetail,
+                                serving = serving,
                                 onDelete = {
                                     coroutineScope.launch {
                                         viewModel.deleteConsumption(consumption.id)
                                     }
                                 }
                             )
-                        }
-                    }
-
-                    // Summary section
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    text = "Ringkasan Nutrisi",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Calculate total nutrition
-                                var totalCalories = 0
-                                var totalProtein = 0.0
-                                var totalCarbs = 0.0
-                                var totalFat = 0.0
-
-                                userConsumptions.forEach { consumption ->
-                                    val foodDetail = foodDetailsMap[consumption.foodId]
-                                    if (foodDetail != null && consumption.servingIndex < foodDetail.servings.size) {
-                                        val serving = foodDetail.servings[consumption.servingIndex]
-                                        totalCalories += serving.calories * consumption.quantity
-                                        totalProtein += serving.protein * consumption.quantity
-                                        totalCarbs += serving.carbohydrate * consumption.quantity
-                                        totalFat += serving.fat * consumption.quantity
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    NutrientSummary(name = "Kalori", value = "$totalCalories kcal")
-                                    NutrientSummary(name = "Protein", value = "${String.format("%.1f", totalProtein)}g")
-                                    NutrientSummary(name = "Karbohidrat", value = "${String.format("%.1f", totalCarbs)}g")
-                                    NutrientSummary(name = "Lemak", value = "${String.format("%.1f", totalFat)}g")
-                                }
-                            }
                         }
                     }
                 }
@@ -233,19 +301,20 @@ fun ConsumptionSummaryScreen(
 fun ConsumptionItem(
     consumption: DailyConsumption,
     foodDetail: FoodDetail?,
+    serving: Serving?,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f)
@@ -258,21 +327,29 @@ fun ConsumptionItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                if (foodDetail != null && consumption.servingIndex < foodDetail.servings.size) {
-                    val serving = foodDetail.servings[consumption.servingIndex]
-
+                // Tampilkan informasi serving jika tersedia
+                if (serving != null) {
                     Text(
                         text = "${consumption.quantity}x ${serving.servingDescription}",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Calculate total nutrition based on quantity
+                    // Kalkulasi total kalori berdasarkan serving dan quantity
                     val totalCalories = serving.calories * consumption.quantity
                     Text(
-                        text = "Total: $totalCalories kcal",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "$totalCalories kcal",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9800)
+                    )
+                } else {
+                    Text(
+                        text = "Loading nutrisi...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
                     )
                 }
             }
@@ -300,5 +377,44 @@ fun NutrientSummary(name: String, value: String) {
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@Composable
+fun NutritionDetailRow(label: String, value: Double) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "${String.format("%.1f", value)} ${getNutrientUnit(label)}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+// Helper function to get appropriate unit for each nutrient
+fun getNutrientUnit(label: String): String {
+    return when (label) {
+        "Lemak Jenuh" -> "g"
+        "Lemak Tak Jenuh Ganda" -> "g"
+        "Lemak Tak Jenuh Tunggal" -> "g"
+        "Kolesterol" -> "mg"
+        "Sodium" -> "mg"
+        "Kalium" -> "mg"
+        "Serat" -> "g"
+        "Gula" -> "g"
+        "Vitamin A" -> "IU"
+        "Vitamin C" -> "mg"
+        "Kalsium" -> "mg"
+        "Zat Besi" -> "mg"
+        else -> ""
     }
 }

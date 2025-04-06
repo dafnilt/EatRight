@@ -47,13 +47,5 @@ data class Serving(
     val iron: Double
 )
 
-data class DailyConsumption(
-    val id: String = "",
-    val userId: String = "",
-    val foodId: String = "",
-    val servingIndex: Int = 0,
-    val quantity: Int = 1,
-    val timestamp: Long = System.currentTimeMillis(),
-    val mealType: String = "Lainnya" // Sarapan, Makan Siang, Makan Malam, Camilan, Lainnya
-)
+
 
