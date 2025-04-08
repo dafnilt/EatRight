@@ -5,10 +5,13 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.proyek.eatright.data.model.DailyConsumption
 import com.proyek.eatright.data.model.FoodDetail
 import com.proyek.eatright.data.model.Serving
+import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -30,11 +34,13 @@ import java.util.*
 @Composable
 fun ConsumptionSummaryScreen(
     onBack: () -> Unit,
-    viewModel: ConsumptionViewModel = viewModel()
+    viewModel: ConsumptionViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val userConsumptions by viewModel.userConsumptions.collectAsState()
     val foodDetailsCache by viewModel.foodDetailsCache.collectAsState()
     val consumptionState by viewModel.consumptionState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -79,222 +85,536 @@ fun ConsumptionSummaryScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        Column(
+        // Wrap everything in a LazyColumn for better scrolling
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
-            // Date display and navigation
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        val calendar = Calendar.getInstance()
-                        calendar.timeInMillis = selectedDate.value
-                        calendar.add(Calendar.DAY_OF_MONTH, -1)
-                        selectedDate.value = calendar.timeInMillis
-                    }
+            item {
+                // Date display and navigation
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Previous Day"
-                    )
-                }
-
-                Text(
-                    text = dateFormat.format(Date(selectedDate.value)),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                IconButton(
-                    onClick = {
-                        val calendar = Calendar.getInstance()
-                        calendar.timeInMillis = selectedDate.value
-                        calendar.add(Calendar.DAY_OF_MONTH, 1)
-                        selectedDate.value = calendar.timeInMillis
+                    IconButton(
+                        onClick = {
+                            val calendar = Calendar.getInstance()
+                            calendar.timeInMillis = selectedDate.value
+                            calendar.add(Calendar.DAY_OF_MONTH, -1)
+                            selectedDate.value = calendar.timeInMillis
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Previous Day"
+                        )
                     }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = "Next Day"
+
+                    Text(
+                        text = dateFormat.format(Date(selectedDate.value)),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
+
+                    IconButton(
+                        onClick = {
+                            val calendar = Calendar.getInstance()
+                            calendar.timeInMillis = selectedDate.value
+                            calendar.add(Calendar.DAY_OF_MONTH, 1)
+                            selectedDate.value = calendar.timeInMillis
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = "Next Day"
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // Loading indicator
             if (consumptionState is com.proyek.eatright.viewmodel.ConsumptionState.Loading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
 
-            // Consumption list
-            if (userConsumptions.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Belum ada konsumsi yang tercatat untuk hari ini",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+            // Empty state
+            if (userConsumptions.isEmpty() && consumptionState !is com.proyek.eatright.viewmodel.ConsumptionState.Loading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Belum ada konsumsi yang tercatat untuk hari ini",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
-            } else {
-                // Comprehensive Nutritional Totals
-                var totalCalories = 0
-                var totalCarbohydrate = 0.0
-                var totalProtein = 0.0
-                var totalFat = 0.0
-                var totalSaturatedFat = 0.0
-                var totalPolyunsaturatedFat = 0.0
-                var totalMonounsaturatedFat = 0.0
-                var totalCholesterol = 0.0
-                var totalSodium = 0.0
-                var totalPotassium = 0.0
-                var totalFiber = 0.0
-                var totalSugar = 0.0
-                var totalVitaminA = 0.0
-                var totalVitaminC = 0.0
-                var totalCalcium = 0.0
-                var totalIron = 0.0
+            } else if (userConsumptions.isNotEmpty()) {
+                // Calculate nutritional values
+                val nutritionTotals = calculateNutritionTotals(userConsumptions, foodDetailsCache)
 
-                userConsumptions.forEach { consumption ->
-                    val foodDetail = foodDetailsCache[consumption.foodId]
-                    if (foodDetail != null &&
-                        consumption.servingIndex >= 0 &&
-                        consumption.servingIndex < foodDetail.servings.size) {
+                // Carbohidrat threshold calculation
+                val carbPercentage = if (nutritionTotals.totalCalories > 0) {
+                    (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+                } else {
+                    0.0
+                }
 
-                        val serving = foodDetail.servings[consumption.servingIndex]
-                        val quantity = consumption.quantity
+                val isCarbPercentageTooLow = carbPercentage < 45.0
+                val isCarbPercentageTooHigh = carbPercentage > 65.0
+                val isCarbTotalTooLow = nutritionTotals.totalCarbohydrate < 130.0
 
-                        totalCalories += serving.calories * quantity
-                        totalCarbohydrate += serving.carbohydrate * quantity
-                        totalProtein += serving.protein * quantity
-                        totalFat += serving.fat * quantity
-                        totalSaturatedFat += serving.saturatedFat * quantity
-                        totalPolyunsaturatedFat += serving.polyunsaturatedFat * quantity
-                        totalMonounsaturatedFat += serving.monounsaturatedFat * quantity
-                        totalCholesterol += serving.cholesterol * quantity
-                        totalSodium += serving.sodium * quantity
-                        totalPotassium += serving.potassium * quantity
-                        totalFiber += serving.fiber * quantity
-                        totalSugar += serving.sugar * quantity
-                        totalVitaminA += serving.vitaminA * quantity
-                        totalVitaminC += serving.vitaminC * quantity
-                        totalCalcium += serving.calcium * quantity
-                        totalIron += serving.iron * quantity
+                // Protein threshold calculation for nefropati diabetik
+                val userWeight = currentUser?.beratBadan ?: 0 // Berat badan dalam kg
+                val recommendedProtein = userWeight * 0.8 // 0.8 g/kg BB untuk nefropati diabetik
+
+                val proteinPercentage = if (nutritionTotals.totalCalories > 0) {
+                    (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+                } else {
+                    0.0
+                }
+
+                val isProteinTooHigh = proteinPercentage > 10.0 || nutritionTotals.totalProtein > recommendedProtein
+
+                // Serat threshold calculation
+                val isFiberTooLow = nutritionTotals.totalFiber < 20.0
+                val isFiberTooHigh = nutritionTotals.totalFiber > 35.0
+
+                // Carbohidrat Warning Alert
+                if (isCarbPercentageTooLow || isCarbPercentageTooHigh || isCarbTotalTooLow) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = "Peringatan Karbohidrat",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    if (isCarbTotalTooLow) {
+                                        Text(
+                                            text = "Konsumsi karbohidrat Anda kurang dari 130g/hari (${String.format(
+                                                "%.1f",
+                                                nutritionTotals.totalCarbohydrate
+                                            )}g).",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+
+                                    if (isCarbPercentageTooLow || isCarbPercentageTooHigh) {
+                                        Text(
+                                            text = when {
+                                                isCarbPercentageTooLow -> "Persentase karbohidrat terlalu rendah (${
+                                                    String.format(
+                                                        "%.1f",
+                                                        carbPercentage
+                                                    )
+                                                }%). Dianjurkan: 45-65% dari total energi."
+                                                else -> "Persentase karbohidrat terlalu tinggi (${
+                                                    String.format(
+                                                        "%.1f",
+                                                        carbPercentage
+                                                    )
+                                                }%). Dianjurkan: 45-65% dari total energi."
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Protein Warning Alert untuk nefropati diabetik
+                if (isProteinTooHigh) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = "Peringatan Protein",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = "Asupan protein Anda terlalu tinggi (${String.format("%.1f", nutritionTotals.totalProtein)}g). " +
+                                                "Untuk nefropati diabetik, dianjurkan maksimal ${String.format("%.1f", recommendedProtein)}g " +
+                                                "per hari (0,8g/kg BB) atau 10% dari total energi.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Serat Warning Alert
+                if (isFiberTooLow || isFiberTooHigh) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = "Peringatan Serat",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = when {
+                                            isFiberTooLow -> "Konsumsi serat Anda terlalu rendah (${String.format("%.1f", nutritionTotals.totalFiber)}g). " +
+                                                    "Dianjurkan 20-35g serat per hari."
+                                            else -> "Konsumsi serat Anda terlalu tinggi (${String.format("%.1f", nutritionTotals.totalFiber)}g). " +
+                                                    "Dianjurkan 20-35g serat per hari."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
                 // Nutrition Summary Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(
+                item {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Ringkasan Nutrisi",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            .padding(bottom = 16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Macro Nutrients Summary
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
                         ) {
-                            NutrientSummary(name = "Kalori", value = "${totalCalories.toInt()} kcal")
-                            NutrientSummary(name = "Karbohidrat", value = "${String.format("%.1f", totalCarbohydrate)}g")
-                            NutrientSummary(name = "Protein", value = "${String.format("%.1f", totalProtein)}g")
-                            NutrientSummary(name = "Lemak", value = "${String.format("%.1f", totalFat)}g")
-                        }
+                            Text(
+                                text = "Ringkasan Nutrisi",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                        // Detailed Nutrition Breakdown
-                        Column {
-                            NutritionDetailRow("Lemak Jenuh", totalSaturatedFat)
-                            NutritionDetailRow("Lemak Tak Jenuh Ganda", totalPolyunsaturatedFat)
-                            NutritionDetailRow("Lemak Tak Jenuh Tunggal", totalMonounsaturatedFat)
-                            NutritionDetailRow("Kolesterol", totalCholesterol)
-                            NutritionDetailRow("Sodium", totalSodium)
-                            NutritionDetailRow("Kalium", totalPotassium)
-                            NutritionDetailRow("Serat", totalFiber)
-                            NutritionDetailRow("Gula", totalSugar)
-                            NutritionDetailRow("Vitamin A", totalVitaminA)
-                            NutritionDetailRow("Vitamin C", totalVitaminC)
-                            NutritionDetailRow("Kalsium", totalCalcium)
-                            NutritionDetailRow("Zat Besi", totalIron)
+                            // Macro Nutrients Summary
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                NutrientSummary(
+                                    name = "Kalori",
+                                    value = "${nutritionTotals.totalCalories.toInt()} kcal"
+                                )
+                                NutrientSummary(
+                                    name = "Karbohidrat",
+                                    value = "${String.format("%.1f", nutritionTotals.totalCarbohydrate)}g",
+                                    isWarning = isCarbPercentageTooLow || isCarbPercentageTooHigh || isCarbTotalTooLow
+                                )
+                                NutrientSummary(
+                                    name = "Protein",
+                                    value = "${String.format("%.1f", nutritionTotals.totalProtein)}g",
+                                    isWarning = isProteinTooHigh
+                                )
+                                NutrientSummary(
+                                    name = "Lemak",
+                                    value = "${String.format("%.1f", nutritionTotals.totalFat)}g"
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Detailed Nutrition Breakdown
+                            Column {
+                                NutritionDetailRow("Lemak Jenuh", nutritionTotals.totalSaturatedFat)
+                                NutritionDetailRow(
+                                    "Lemak Tak Jenuh Ganda",
+                                    nutritionTotals.totalPolyunsaturatedFat
+                                )
+                                NutritionDetailRow(
+                                    "Lemak Tak Jenuh Tunggal",
+                                    nutritionTotals.totalMonounsaturatedFat
+                                )
+                                NutritionDetailRow("Kolesterol", nutritionTotals.totalCholesterol)
+                                NutritionDetailRow("Sodium", nutritionTotals.totalSodium)
+                                NutritionDetailRow("Kalium", nutritionTotals.totalPotassium)
+                                NutritionDetailRow("Serat", nutritionTotals.totalFiber, isWarning = isFiberTooLow || isFiberTooHigh)
+                                NutritionDetailRow("Gula", nutritionTotals.totalSugar)
+                                NutritionDetailRow("Vitamin A", nutritionTotals.totalVitaminA)
+                                NutritionDetailRow("Vitamin C", nutritionTotals.totalVitaminC)
+                                NutritionDetailRow("Kalsium", nutritionTotals.totalCalcium)
+                                NutritionDetailRow("Zat Besi", nutritionTotals.totalIron)
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Energy distribution
+                            if (nutritionTotals.totalCalories > 0) {
+                                val carbEnergyPercentage =
+                                    (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+                                val proteinEnergyPercentage =
+                                    (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+                                val fatEnergyPercentage =
+                                    (nutritionTotals.totalFat * 9 / nutritionTotals.totalCalories.toDouble()) * 100
+
+                                Text(
+                                    text = "Distribusi Energi",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    MacroPercentage(
+                                        name = "Karbohidrat",
+                                        percentage = carbEnergyPercentage,
+                                        isWarning = isCarbPercentageTooLow || isCarbPercentageTooHigh,
+                                        recommendedRange = "45-65%"
+                                    )
+                                    MacroPercentage(
+                                        name = "Protein",
+                                        percentage = proteinEnergyPercentage,
+                                        isWarning = isProteinTooHigh,
+                                        recommendedRange = "≤10%"
+                                    )
+                                    MacroPercentage(
+                                        name = "Lemak",
+                                        percentage = fatEnergyPercentage
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // List of consumptions grouped by meal type
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    val groupedConsumptions = userConsumptions.groupBy { it.mealType }
+                val groupedConsumptions = userConsumptions.groupBy { it.mealType }
 
-                    groupedConsumptions.forEach { (mealType, consumptions) ->
-                        item {
-                            Text(
-                                text = mealType,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
+                groupedConsumptions.forEach { (mealType, consumptions) ->
+                    item {
+                        Text(
+                            text = mealType,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
 
-                        items(consumptions) { consumption ->
-                            val foodDetail = foodDetailsCache[consumption.foodId]
-                            val serving = if (foodDetail != null &&
-                                consumption.servingIndex >= 0 &&
-                                consumption.servingIndex < foodDetail.servings.size) {
-                                foodDetail.servings[consumption.servingIndex]
-                            } else null
+                    items(consumptions) { consumption ->
+                        val foodDetail = foodDetailsCache[consumption.foodId]
+                        val serving = if (foodDetail != null &&
+                            consumption.servingIndex >= 0 &&
+                            consumption.servingIndex < foodDetail.servings.size
+                        ) {
+                            foodDetail.servings[consumption.servingIndex]
+                        } else null
 
-                            ConsumptionItem(
-                                consumption = consumption,
-                                foodDetail = foodDetail,
-                                serving = serving,
-                                onDelete = {
-                                    coroutineScope.launch {
-                                        viewModel.deleteConsumption(consumption.id)
-                                    }
+                        ConsumptionItem(
+                            consumption = consumption,
+                            foodDetail = foodDetail,
+                            serving = serving,
+                            onDelete = {
+                                coroutineScope.launch {
+                                    viewModel.deleteConsumption(consumption.id)
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
             }
         }
     }
+}
+
+// Model class untuk menyimpan total nutrisi
+data class NutritionTotals(
+    val totalCalories: Int = 0,
+    val totalCarbohydrate: Double = 0.0,
+    val totalProtein: Double = 0.0,
+    val totalFat: Double = 0.0,
+    val totalSaturatedFat: Double = 0.0,
+    val totalPolyunsaturatedFat: Double = 0.0,
+    val totalMonounsaturatedFat: Double = 0.0,
+    val totalCholesterol: Double = 0.0,
+    val totalSodium: Double = 0.0,
+    val totalPotassium: Double = 0.0,
+    val totalFiber: Double = 0.0,
+    val totalSugar: Double = 0.0,
+    val totalVitaminA: Double = 0.0,
+    val totalVitaminC: Double = 0.0,
+    val totalCalcium: Double = 0.0,
+    val totalIron: Double = 0.0
+)
+
+// Function untuk menghitung total nutrisi
+fun calculateNutritionTotals(
+    consumptions: List<DailyConsumption>,
+    foodDetailsCache: Map<String, FoodDetail>
+): NutritionTotals {
+    var totalCalories = 0
+    var totalCarbohydrate = 0.0
+    var totalProtein = 0.0
+    var totalFat = 0.0
+    var totalSaturatedFat = 0.0
+    var totalPolyunsaturatedFat = 0.0
+    var totalMonounsaturatedFat = 0.0
+    var totalCholesterol = 0.0
+    var totalSodium = 0.0
+    var totalPotassium = 0.0
+    var totalFiber = 0.0
+    var totalSugar = 0.0
+    var totalVitaminA = 0.0
+    var totalVitaminC = 0.0
+    var totalCalcium = 0.0
+    var totalIron = 0.0
+
+    consumptions.forEach { consumption ->
+        val foodDetail = foodDetailsCache[consumption.foodId]
+        if (foodDetail != null &&
+            consumption.servingIndex >= 0 &&
+            consumption.servingIndex < foodDetail.servings.size) {
+
+            val serving = foodDetail.servings[consumption.servingIndex]
+            val quantity = consumption.quantity
+
+            totalCalories += serving.calories * quantity
+            totalCarbohydrate += serving.carbohydrate * quantity
+            totalProtein += serving.protein * quantity
+            totalFat += serving.fat * quantity
+            totalSaturatedFat += serving.saturatedFat * quantity
+            totalPolyunsaturatedFat += serving.polyunsaturatedFat * quantity
+            totalMonounsaturatedFat += serving.monounsaturatedFat * quantity
+            totalCholesterol += serving.cholesterol * quantity
+            totalSodium += serving.sodium * quantity
+            totalPotassium += serving.potassium * quantity
+            totalFiber += serving.fiber * quantity
+            totalSugar += serving.sugar * quantity
+            totalVitaminA += serving.vitaminA * quantity
+            totalVitaminC += serving.vitaminC * quantity
+            totalCalcium += serving.calcium * quantity
+            totalIron += serving.iron * quantity
+        }
+    }
+
+    return NutritionTotals(
+        totalCalories,
+        totalCarbohydrate,
+        totalProtein,
+        totalFat,
+        totalSaturatedFat,
+        totalPolyunsaturatedFat,
+        totalMonounsaturatedFat,
+        totalCholesterol,
+        totalSodium,
+        totalPotassium,
+        totalFiber,
+        totalSugar,
+        totalVitaminA,
+        totalVitaminC,
+        totalCalcium,
+        totalIron
+    )
 }
 
 @Composable
@@ -366,7 +686,11 @@ fun ConsumptionItem(
 }
 
 @Composable
-fun NutrientSummary(name: String, value: String) {
+fun NutrientSummary(
+    name: String,
+    value: String,
+    isWarning: Boolean = false
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = name,
@@ -375,13 +699,42 @@ fun NutrientSummary(name: String, value: String) {
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
         )
     }
 }
 
 @Composable
-fun NutritionDetailRow(label: String, value: Double) {
+fun MacroPercentage(
+    name: String,
+    percentage: Double,
+    isWarning: Boolean = false,
+    recommendedRange: String = ""
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "${String.format("%.1f", percentage)}%",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
+        )
+        if (recommendedRange.isNotEmpty()) {
+            Text(
+                text = recommendedRange,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+fun NutritionDetailRow(label: String, value: Double, isWarning: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -395,7 +748,8 @@ fun NutritionDetailRow(label: String, value: Double) {
         Text(
             text = "${String.format("%.1f", value)} ${getNutrientUnit(label)}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
         )
     }
 }

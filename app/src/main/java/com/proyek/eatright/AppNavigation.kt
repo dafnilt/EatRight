@@ -1,6 +1,9 @@
 package com.proyek.eatright
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -12,6 +15,8 @@ import com.proyek.eatright.ui.screen.FoodDetailScreen
 import com.proyek.eatright.ui.screen.LoginScreen
 import com.proyek.eatright.ui.screen.RegisterScreen
 import com.proyek.eatright.ui.screen.SearchScreen
+import com.proyek.eatright.ui.screen.SplashScreen
+import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import com.proyek.eatright.viewmodel.FoodSearchViewModel
@@ -23,10 +28,28 @@ fun AppNavigation() {
     val foodSearchViewModel: FoodSearchViewModel = viewModel()
     val consumptionViewModel: ConsumptionViewModel = viewModel()
 
+    val authState by authViewModel.authState.collectAsState()
+
     NavHost(
         navController = navController,
-        startDestination = "login"
+        startDestination = "splash" // Start ke SplashScreen dulu
     ) {
+        composable("splash") {
+            SplashScreen(
+                authState = authState,
+                onNavigateToLogin = {
+                    navController.navigate("login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                },
+                onNavigateToMain = {
+                    navController.navigate("main") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable("login") {
             LoginScreen(
                 navController = navController,
@@ -46,10 +69,11 @@ fun AppNavigation() {
                 onFoodClick = { foodId ->
                     navController.navigate("food_detail/$foodId")
                 },
-                viewModel = foodSearchViewModel,
                 onConsumptionSummaryClick = {
                     navController.navigate("consumption_summary")
-                }
+                },
+                viewModel = foodSearchViewModel,
+                authViewModel = authViewModel
             )
         }
 
@@ -66,8 +90,10 @@ fun AppNavigation() {
 
         composable("consumption_summary") {
             ConsumptionSummaryScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
             )
         }
     }
 }
+
+

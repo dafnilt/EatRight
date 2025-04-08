@@ -21,15 +21,30 @@ class AuthViewModel : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    // Initialize in a safe way
     init {
-        // Force logout on app start
-        try {
-            repository.logout()
-            _currentUser.value = null
+        val firebaseUser = auth.currentUser
+        if (firebaseUser != null) {
+            viewModelScope.launch {
+                try {
+                    repository.getUserData(firebaseUser.uid).fold(
+                        onSuccess = { user ->
+                            _currentUser.value = user
+                            _authState.value = AuthState.Authenticated
+                        },
+                        onFailure = { exception ->
+                            _authState.value = AuthState.Error(exception.message ?: "Failed to load user data")
+                            repository.logout()
+                            _currentUser.value = null
+                        }
+                    )
+                } catch (e: Exception) {
+                    _authState.value = AuthState.Error("Error loading user data: ${e.message}")
+                    repository.logout()
+                    _currentUser.value = null
+                }
+            }
+        } else {
             _authState.value = AuthState.Unauthenticated
-        } catch (e: Exception) {
-            _authState.value = AuthState.Error("Error logging out: ${e.message}")
         }
     }
 
