@@ -170,6 +170,13 @@ fun ConsumptionSummaryScreen(
                 // Calculate nutritional values
                 val nutritionTotals = calculateNutritionTotals(userConsumptions, foodDetailsCache)
 
+                val userHeight = currentUser?.tinggiBadan ?: 0 // Tinggi badan dalam cm
+                val userGender = currentUser?.gender ?: ""
+                val userWeight = currentUser?.beratBadan ?: 0 // Berat badan dalam kg
+
+                val idealWeight = calculateIdealWeight(userHeight, userGender)
+                val recommendedCalories = calculateRecommendedCalories(idealWeight, userWeight)
+
                 // Carbohidrat threshold calculation
                 val carbPercentage = if (nutritionTotals.totalCalories > 0) {
                     (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
@@ -181,21 +188,91 @@ fun ConsumptionSummaryScreen(
                 val isCarbPercentageTooHigh = carbPercentage > 65.0
                 val isCarbTotalTooLow = nutritionTotals.totalCarbohydrate < 130.0
 
-                // Protein threshold calculation for nefropati diabetik
-                val userWeight = currentUser?.beratBadan ?: 0 // Berat badan dalam kg
-                val recommendedProtein = userWeight * 0.8 // 0.8 g/kg BB untuk nefropati diabetik
-
+                // Protein threshold calculation
                 val proteinPercentage = if (nutritionTotals.totalCalories > 0) {
                     (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
                 } else {
                     0.0
                 }
+                val isProteinTooLow = proteinPercentage < 10.0
+                val isProteinTooHigh = proteinPercentage > 35.0
 
-                val isProteinTooHigh = proteinPercentage > 10.0 || nutritionTotals.totalProtein > recommendedProtein
+                // Fat threshold calculation
+                val fatPercentage = if (nutritionTotals.totalCalories > 0) {
+                    (nutritionTotals.totalFat * 9 / nutritionTotals.totalCalories.toDouble()) * 100
+                } else {
+                    0.0
+                }
+                val isFatTooLow = fatPercentage < 20.0
+                val isFatTooHigh = fatPercentage > 25.0
+
+                // Sugar threshold calculation
+                val isSugarTooHigh = nutritionTotals.totalSugar > 50.0
+
+                // Calories threshold calculation
+                val isCaloriesTooLow = recommendedCalories > 0 && nutritionTotals.totalCalories < (recommendedCalories * 0.9)
+                val isCaloriesTooHigh = recommendedCalories > 0 && nutritionTotals.totalCalories > (recommendedCalories * 1.1)
 
                 // Serat threshold calculation
                 val isFiberTooLow = nutritionTotals.totalFiber < 20.0
                 val isFiberTooHigh = nutritionTotals.totalFiber > 35.0
+
+                // Calories Warning Alert
+                if (isCaloriesTooLow || isCaloriesTooHigh) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = "Peringatan Kalori",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    if (isCaloriesTooLow) {
+                                        Text(
+                                            text = "Konsumsi kalori Anda terlalu rendah (${nutritionTotals.totalCalories.toInt()} kcal). " +
+                                                    "Dianjurkan sekitar $recommendedCalories kcal per hari berdasarkan berat badan ideal Anda.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    } else if (isCaloriesTooHigh) {
+                                        Text(
+                                            text = "Konsumsi kalori Anda terlalu tinggi (${nutritionTotals.totalCalories.toInt()} kcal). " +
+                                                    "Dianjurkan sekitar $recommendedCalories kcal per hari berdasarkan berat badan ideal Anda.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Carbohidrat Warning Alert
                 if (isCarbPercentageTooLow || isCarbPercentageTooHigh || isCarbTotalTooLow) {
@@ -232,6 +309,7 @@ fun ConsumptionSummaryScreen(
                                     )
 
                                     Spacer(modifier = Modifier.height(4.dp))
+
 
                                     if (isCarbTotalTooLow) {
                                         Text(
@@ -270,8 +348,8 @@ fun ConsumptionSummaryScreen(
                     }
                 }
 
-                // Protein Warning Alert untuk nefropati diabetik
-                if (isProteinTooHigh) {
+                // Protein Warning Alert
+                if (isProteinTooLow || isProteinTooHigh) {
                     item {
                         Card(
                             modifier = Modifier
@@ -306,10 +384,133 @@ fun ConsumptionSummaryScreen(
 
                                     Spacer(modifier = Modifier.height(4.dp))
 
+                                    if (isProteinTooLow) {
+                                        Text(
+                                            text = "Konsumsi protein Anda terlalu rendah (${String.format(
+                                                "%.1f",
+                                                proteinPercentage
+                                            )}%). Dianjurkan: 10-35% dari total kalori.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    } else if (isProteinTooHigh) {
+                                        Text(
+                                            text = "Konsumsi protein Anda terlalu tinggi (${String.format(
+                                                "%.1f",
+                                                proteinPercentage
+                                            )}%). Dianjurkan: 10-35% dari total kalori.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fat Warning Alert
+                if (isFatTooLow || isFatTooHigh) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
                                     Text(
-                                        text = "Asupan protein Anda terlalu tinggi (${String.format("%.1f", nutritionTotals.totalProtein)}g). " +
-                                                "Untuk nefropati diabetik, dianjurkan maksimal ${String.format("%.1f", recommendedProtein)}g " +
-                                                "per hari (0,8g/kg BB) atau 10% dari total energi.",
+                                        text = "Peringatan Lemak",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    if (isFatTooLow) {
+                                        Text(
+                                            text = "Konsumsi lemak Anda terlalu rendah (${String.format(
+                                                "%.1f",
+                                                fatPercentage
+                                            )}%). Dianjurkan: 20-25% dari total kalori.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    } else if (isFatTooHigh) {
+                                        Text(
+                                            text = "Konsumsi lemak Anda terlalu tinggi (${String.format(
+                                                "%.1f",
+                                                fatPercentage
+                                            )}%). Dianjurkan: 20-25% dari total kalori.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Sugar Warning Alert
+                if (isSugarTooHigh) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = "Peringatan Gula",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = "Konsumsi gula Anda terlalu tinggi (${String.format(
+                                            "%.1f",
+                                            nutritionTotals.totalSugar
+                                        )}g). Dianjurkan: maksimal 50g per hari.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
@@ -401,7 +602,8 @@ fun ConsumptionSummaryScreen(
                             ) {
                                 NutrientSummary(
                                     name = "Kalori",
-                                    value = "${nutritionTotals.totalCalories.toInt()} kcal"
+                                    value = "${nutritionTotals.totalCalories.toInt()} kcal",
+                                    isWarning = isCaloriesTooLow || isCaloriesTooHigh
                                 )
                                 NutrientSummary(
                                     name = "Karbohidrat",
@@ -411,11 +613,12 @@ fun ConsumptionSummaryScreen(
                                 NutrientSummary(
                                     name = "Protein",
                                     value = "${String.format("%.1f", nutritionTotals.totalProtein)}g",
-                                    isWarning = isProteinTooHigh
+                                    isWarning = isProteinTooLow || isProteinTooHigh
                                 )
                                 NutrientSummary(
                                     name = "Lemak",
-                                    value = "${String.format("%.1f", nutritionTotals.totalFat)}g"
+                                    value = "${String.format("%.1f", nutritionTotals.totalFat)}g",
+                                    isWarning = isFatTooLow || isFatTooHigh
                                 )
                             }
 
@@ -436,7 +639,7 @@ fun ConsumptionSummaryScreen(
                                 NutritionDetailRow("Sodium", nutritionTotals.totalSodium)
                                 NutritionDetailRow("Kalium", nutritionTotals.totalPotassium)
                                 NutritionDetailRow("Serat", nutritionTotals.totalFiber, isWarning = isFiberTooLow || isFiberTooHigh)
-                                NutritionDetailRow("Gula", nutritionTotals.totalSugar)
+                                NutritionDetailRow("Gula", nutritionTotals.totalSugar, isWarning = isSugarTooHigh)
                                 NutritionDetailRow("Vitamin A", nutritionTotals.totalVitaminA)
                                 NutritionDetailRow("Vitamin C", nutritionTotals.totalVitaminC)
                                 NutritionDetailRow("Kalsium", nutritionTotals.totalCalcium)
@@ -467,6 +670,7 @@ fun ConsumptionSummaryScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     MacroPercentage(
+
                                         name = "Karbohidrat",
                                         percentage = carbEnergyPercentage,
                                         isWarning = isCarbPercentageTooLow || isCarbPercentageTooHigh,
@@ -475,12 +679,99 @@ fun ConsumptionSummaryScreen(
                                     MacroPercentage(
                                         name = "Protein",
                                         percentage = proteinEnergyPercentage,
-                                        isWarning = isProteinTooHigh,
-                                        recommendedRange = "≤10%"
+                                        isWarning = isProteinTooLow || isProteinTooHigh,
+                                        recommendedRange = "10-35%"
                                     )
                                     MacroPercentage(
                                         name = "Lemak",
-                                        percentage = fatEnergyPercentage
+                                        percentage = fatEnergyPercentage,
+                                        isWarning = isFatTooLow || isFatTooHigh,
+                                        recommendedRange = "20-25%"
+                                    )
+                                }
+
+                                // Add recommended calorie information
+                                if (recommendedCalories > 0) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Text(
+                                        text = "Kebutuhan Kalori Harian",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Rekomendasi: $recommendedCalories kcal",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+
+                                        Text(
+                                            text = "Konsumsi: ${nutritionTotals.totalCalories.toInt()} kcal",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isCaloriesTooLow || isCaloriesTooHigh)
+                                                MaterialTheme.colorScheme.error
+                                            else
+                                                Color.Unspecified
+                                        )
+                                    }
+
+                                    if (isCaloriesTooLow || isCaloriesTooHigh) {
+                                        Text(
+                                            text = when {
+                                                isCaloriesTooLow -> "Konsumsi kalori Anda terlalu rendah"
+                                                else -> "Konsumsi kalori Anda terlalu tinggi"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+
+                                // Add sugar limit information
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "Batas Konsumsi Gula",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Maksimal: 50g/hari",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+
+                                    Text(
+                                        text = "Konsumsi: ${String.format("%.1f", nutritionTotals.totalSugar)}g",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSugarTooHigh)
+                                            MaterialTheme.colorScheme.error
+                                        else
+                                            Color.Unspecified
+                                    )
+                                }
+
+                                if (isSugarTooHigh) {
+                                    Text(
+                                        text = "Konsumsi gula Anda melebihi batas harian",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
                                     )
                                 }
                             }
@@ -524,6 +815,30 @@ fun ConsumptionSummaryScreen(
                 }
             }
         }
+    }
+}
+
+// Helper function to calculate ideal weight based on the Broca formula
+fun calculateIdealWeight(heightCm: Int, gender: String): Double {
+    return if ((gender.equals("perempuan", ignoreCase = true) && heightCm < 150) ||
+        (gender.equals("laki-laki", ignoreCase = true) && heightCm < 160)) {
+        (heightCm - 100).toDouble()
+    } else {
+        0.9 * (heightCm - 100)
+    }
+}
+
+// Helper function to calculate recommended calories
+fun calculateRecommendedCalories(idealWeight: Double, currentWeight: Int): Int {
+    val isObese = currentWeight > (idealWeight * 1.1)
+
+    // For obese patients, reduce by 500 calories from normal recommendation
+    val baseCalories = (idealWeight * 30).toInt() // 30 calories per kg of ideal weight
+
+    return if (isObese) {
+        baseCalories - 500
+    } else {
+        baseCalories
     }
 }
 
