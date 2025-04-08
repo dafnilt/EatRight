@@ -2,6 +2,7 @@ package com.proyek.eatright.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,9 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.proyek.eatright.data.model.User
 import com.proyek.eatright.viewmodel.AuthState
@@ -55,56 +59,90 @@ fun RegisterScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Register") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.White
+                )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.White
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Nama Lengkap field
             OutlinedTextField(
                 value = nama,
                 onValueChange = { nama = it },
                 label = { Text("Nama Lengkap") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Email field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Username field
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
                 label = { Text("Username") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Password field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -112,32 +150,59 @@ fun RegisterScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Nomor Telepon field
             OutlinedTextField(
                 value = noTelp,
                 onValueChange = { noTelp = it },
                 label = { Text("Nomor Telepon") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Tanggal Lahir field
             OutlinedTextField(
                 value = tanggalLahir,
                 onValueChange = { tanggalLahir = it },
                 label = { Text("Tanggal Lahir (DD/MM/YYYY)") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFE6EEFF),
+                    unfocusedContainerColor = Color(0xFFE6EEFF),
+                    disabledContainerColor = Color(0xFFE6EEFF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Tinggi Badan and Berat Badan fields in a row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -148,7 +213,15 @@ fun RegisterScreen(
                     label = { Text("Tinggi (cm)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFE6EEFF),
+                        unfocusedContainerColor = Color(0xFFE6EEFF),
+                        disabledContainerColor = Color(0xFFE6EEFF),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    )
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -159,12 +232,21 @@ fun RegisterScreen(
                     label = { Text("Berat (kg)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFE6EEFF),
+                        unfocusedContainerColor = Color(0xFFE6EEFF),
+                        disabledContainerColor = Color(0xFFE6EEFF),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    )
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // Register button
             Button(
                 onClick = {
                     if (validateFields()) {
@@ -183,16 +265,40 @@ fun RegisterScreen(
                         // Show error message for missing fields
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(25.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6E66FA)
+                )
             ) {
                 if (authState is AuthState.Loading) {
                     CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
                 } else {
-                    Text("Register")
+                    Text(
+                        "Register",
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Login text
+            TextButton(
+                onClick = { navController.navigate("login") }
+            ) {
+                Text(
+                    "Already have an account? Login",
+                    color = Color(0xFF6E66FA), // Warna biru-ungu seperti pada gambar
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
