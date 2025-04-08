@@ -11,5 +11,6 @@ data class User(
     val noTelp: String = "",
     val tanggalLahir: String = "",
     val tinggiBadan: Int = 0,
-    val beratBadan: Int = 0
+    val beratBadan: Int = 0,
+    val gender: String = ""
 )

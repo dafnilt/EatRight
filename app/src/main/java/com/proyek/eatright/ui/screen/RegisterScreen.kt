@@ -36,6 +36,10 @@ fun RegisterScreen(
     var tanggalLahir by remember { mutableStateOf("") }
     var tinggiBadan by remember { mutableStateOf("") }
     var beratBadan by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") } // Menambahkan state untuk gender
+    var expanded by remember { mutableStateOf(false) } // Untuk dropdown gender
+
+    val genderOptions = listOf("Laki-laki", "Perempuan") // Opsi gender
 
     val authState by viewModel.authState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -100,6 +104,49 @@ fun RegisterScreen(
                     unfocusedIndicatorColor = Color.Transparent,
                 )
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Gender dropdown field
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = gender,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Gender") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFE6EEFF),
+                        unfocusedContainerColor = Color(0xFFE6EEFF),
+                        disabledContainerColor = Color(0xFFE6EEFF),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    )
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    genderOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                gender = option
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -258,7 +305,8 @@ fun RegisterScreen(
                             noTelp = noTelp,
                             tanggalLahir = tanggalLahir,
                             tinggiBadan = tinggiBadan.toIntOrNull() ?: 0,
-                            beratBadan = beratBadan.toIntOrNull() ?: 0
+                            beratBadan = beratBadan.toIntOrNull() ?: 0,
+                            gender = gender
                         )
                         viewModel.register(user)
                     } else {
