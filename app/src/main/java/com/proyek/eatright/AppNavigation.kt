@@ -30,6 +30,15 @@ fun AppNavigation() {
 
     val authState by authViewModel.authState.collectAsState()
 
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Unauthenticated) {
+            navController.navigate("login") {
+                popUpTo(0) { inclusive = true } // bersihkan semua halaman sebelumnya
+            }
+        }
+    }
+
+
     NavHost(
         navController = navController,
         startDestination = "splash" // Start ke SplashScreen dulu
