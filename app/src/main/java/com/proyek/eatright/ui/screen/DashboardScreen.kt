@@ -33,6 +33,8 @@ import com.proyek.eatright.ui.theme.DarkBlue
 import com.proyek.eatright.ui.theme.DarkBlue2
 import com.proyek.eatright.ui.theme.LightBlue
 import com.proyek.eatright.ui.theme.LightBlue2
+import com.proyek.eatright.ui.theme.Pink80
+import com.proyek.eatright.ui.theme.Yellow
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import com.proyek.eatright.viewmodel.FoodSearchViewModel
@@ -58,11 +60,23 @@ fun DashboardScreen(
     // Collect consumption data
     val userConsumptions by consumptionViewModel.userConsumptions.collectAsState()
 
+    // Collect current user data
+    val currentUser by authViewModel.currentUser.collectAsState()
+
     // Calculate total nutritional values
     val totalCalories = userConsumptions.sumOf { it.nutritionalDetails.calories }
     val totalCarbs = userConsumptions.sumOf { it.nutritionalDetails.carbohydrate }
     val totalSugar = userConsumptions.sumOf { it.nutritionalDetails.sugar }
     val totalProtein = userConsumptions.sumOf { it.nutritionalDetails.protein }
+
+    // Get user data from collected state
+    val userHeight = currentUser?.tinggiBadan ?: 0 // Tinggi badan dalam cm
+    val userGender = currentUser?.gender ?: ""
+    val userWeight = currentUser?.beratBadan ?: 0 // Berat badan dalam kg
+
+    // Calculate ideal weight and recommended calories
+    val idealWeight = calculateIdealWeightInDashboard(userHeight, userGender)
+    val recommendedCalories = calculateRecommendedCaloriesInDashboard(idealWeight, userWeight)
 
     // Load user consumptions when screen is first displayed
     LaunchedEffect(Unit) {
@@ -77,14 +91,12 @@ fun DashboardScreen(
                     // Empty or add icon if needed
                 },
                 actions = {
-                    TopBarActions(authViewModel = authViewModel)
+                    TopBarActionsInDashboard(authViewModel = authViewModel)
                     Spacer(modifier = Modifier.width(16.dp))
                 }
-
             )
         },
-
-        ) { innerPadding ->
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -96,8 +108,7 @@ fun DashboardScreen(
 
             // Greeting section
             Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -108,9 +119,8 @@ fun DashboardScreen(
                         color = Color.Gray
                     )
 
-                    val userName = authViewModel.currentUser.value?.nama ?: "User"
                     Text(
-                        text = userName,
+                        text = currentUser?.nama ?: "User",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -128,6 +138,39 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Ideal Weight and Recommended Calories Cards
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Ideal Weight Card
+                HealthInfoCard(
+                    title = "Berat Badan Ideal",
+                    value = String.format("%.1f", idealWeight),
+                    unit = "kg",
+                    description = "",
+                    modifier = Modifier.weight(1f),
+                    cardColor = LightBlue.copy(alpha = 0.1f),
+                    textColor = DarkBlue
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Recommended Calories Card
+                HealthInfoCard(
+                    title = "Kalori Harian",
+                    value = recommendedCalories.toString(),
+                    unit = "kkal",
+                    description = "",
+                    modifier = Modifier.weight(1f),
+                    cardColor = DarkBlue2.copy(alpha = 0.1f),
+                    textColor = DarkBlue2
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Nutrition cards section with circular indicators
             Row(
@@ -160,11 +203,11 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // Calories Card with circular indicator
-                CircularNutritionCard(
+                CircularNutritionCardInDashboard(
                     title = "Kalori",
                     value = totalCalories.toInt().toString(),
                     unit = "kkal",
-                    color = LightBlue,
+                    color = LightBlue2,
                     progress = 0.65f,
                     modifier = Modifier.weight(1f)
                 )
@@ -172,11 +215,11 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 // Carbs Card with circular indicator
-                CircularNutritionCard(
+                CircularNutritionCardInDashboard(
                     title = "Karbohidrat",
                     value = String.format("%.1f", totalCarbs),
                     unit = "g",
-                    color = LightBlue2,
+                    color = Yellow.copy(alpha = 0.7f),
                     progress = 0.45f,
                     modifier = Modifier.weight(1f)
                 )
@@ -184,24 +227,23 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 // Sugar Card with circular indicator
-                CircularNutritionCard(
+                CircularNutritionCardInDashboard(
                     title = "Gula",
                     value = String.format("%.1f", totalSugar),
                     unit = "g",
-                    color = DarkBlue.copy(alpha = 0.7f),
+                    color = Pink80,
                     progress = 0.3f,
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
         }
     }
 }
 
 @Composable
-fun TopBarActions(authViewModel: AuthViewModel) {
+fun TopBarActionsInDashboard(authViewModel: AuthViewModel) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(
@@ -234,7 +276,78 @@ fun TopBarActions(authViewModel: AuthViewModel) {
 }
 
 @Composable
-fun CircularNutritionCard(
+fun HealthInfoCard(
+    title: String,
+    value: String,
+    unit: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    cardColor: Color = LightBlue.copy(alpha = 0.1f),
+    textColor: Color = DarkBlue
+) {
+    Card(
+        modifier = modifier
+            .height(160.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Circular background untuk nilai
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(cardColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun CircularNutritionCardInDashboard(
     title: String,
     value: String,
     unit: String,
@@ -308,3 +421,26 @@ fun CircularNutritionCard(
     }
 }
 
+// Helper function to calculate ideal weight based on the Broca formula
+fun calculateIdealWeightInDashboard(heightCm: Int, gender: String): Double {
+    return if ((gender.equals("perempuan", ignoreCase = true) && heightCm < 150) ||
+        (gender.equals("laki-laki", ignoreCase = true) && heightCm < 160)) {
+        (heightCm - 100).toDouble()
+    } else {
+        0.9 * (heightCm - 100)
+    }
+}
+
+// Helper function to calculate recommended calories
+fun calculateRecommendedCaloriesInDashboard(idealWeight: Double, currentWeight: Int): Int {
+    val isObese = currentWeight > (idealWeight * 1.1)
+
+    // For obese patients, reduce by 500 calories from normal recommendation
+    val baseCalories = (idealWeight * 30).toInt() // 30 calories per kg of ideal weight
+
+    return if (isObese) {
+        baseCalories - 500
+    } else {
+        baseCalories
+    }
+}
