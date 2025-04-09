@@ -33,8 +33,7 @@ import com.proyek.eatright.viewmodel.FoodSearchViewModel
 fun SearchScreen(
     onFoodClick: (String) -> Unit,
     onConsumptionSummaryClick: () -> Unit,
-    viewModel: FoodSearchViewModel,
-    authViewModel: AuthViewModel  // Tambahkan AuthViewModel
+    viewModel: FoodSearchViewModel
 ) {
     val searchQuery = remember { mutableStateOf("") }
     val searchResults by viewModel.searchResults.collectAsState()
@@ -42,33 +41,7 @@ fun SearchScreen(
     val hasSearched = viewModel.hasSearched.collectAsState()
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(  // Gunakan CenterAlignedTopAppBar untuk desain yang lebih baik
-                title = { Text("EatRight") },
-                navigationIcon = {
-                    // Biarkan kosong atau tambahkan icon di sini jika diperlukan
-                },
-                actions = {
-                    // Tombol untuk melihat konsumsi harian
-                    IconButton(onClick = onConsumptionSummaryClick) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Konsumsi Harian"
-                        )
-                    }
 
-                    // Tombol logout
-                    TextButton(
-                        onClick = {
-                            authViewModel.logout()
-                            // Navigation akan otomatis dihandle melalui LaunchedEffect di AppNavigation
-                        }
-                    ) {
-                        Text("Logout", color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            )
-        }
     ) { innerPadding ->
         // Konten sama seperti sebelumnya
         Column(
