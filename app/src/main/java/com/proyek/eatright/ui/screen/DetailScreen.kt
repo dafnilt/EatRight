@@ -313,8 +313,8 @@ fun NutritionInfo(serving: Serving) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Detailed nutrition in 2 columns
-            DetailedNutritionSectionInColumns(serving = serving)
+            // Detailed nutrition in single column
+            DetailedNutritionSection(serving = serving)
         }
     }
 }
@@ -485,8 +485,9 @@ fun MacroLegendItem(
     }
 }
 
+
 @Composable
-fun DetailedNutritionSectionInColumns(serving: Serving) {
+fun DetailedNutritionSection(serving: Serving) {
     Column {
         Text(
             text = "Informasi Nutrisi Detail",
@@ -495,45 +496,27 @@ fun DetailedNutritionSectionInColumns(serving: Serving) {
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                // First row
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Left column
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        NutrientItem("Lemak Jenuh", serving.saturatedFat, "g")
-                        NutrientItem("Lemak T.J. Ganda", serving.polyunsaturatedFat, "g")
-                        NutrientItem("Lemak T.J. Tunggal", serving.monounsaturatedFat, "g")
-                        NutrientItem("Kolesterol", serving.cholesterol, "mg")
-                        NutrientItem("Sodium", serving.sodium, "mg")
-                        NutrientItem("Kalium", serving.potassium, "mg")
-                    }
-
-                    // Small spacer between columns
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // Right column
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        NutrientItem("Serat", serving.fiber, "g")
-                        NutrientItem("Gula", serving.sugar, "g")
-                        NutrientItem("Vitamin A", serving.vitaminA, "IU")
-                        NutrientItem("Vitamin C", serving.vitaminC, "mg")
-                        NutrientItem("Kalsium", serving.calcium, "mg")
-                        NutrientItem("Zat Besi", serving.iron, "mg")
-                    }
-                }
-            }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // All nutrients in a single column
+            NutrientItem("Lemak Jenuh", serving.saturatedFat, "g")
+            NutrientItem("Lemak T.J. Ganda", serving.polyunsaturatedFat, "g")
+            NutrientItem("Lemak T.J. Tunggal", serving.monounsaturatedFat, "g")
+            NutrientItem("Kolesterol", serving.cholesterol, "mg")
+            NutrientItem("Sodium", serving.sodium, "mg")
+            NutrientItem("Kalium", serving.potassium, "mg")
+            NutrientItem("Serat", serving.fiber, "g")
+            NutrientItem("Gula", serving.sugar, "g")
+            NutrientItem("Vitamin A", serving.vitaminA, "IU")
+            NutrientItem("Vitamin C", serving.vitaminC, "mg")
+            NutrientItem("Kalsium", serving.calcium, "mg")
+            NutrientItem("Zat Besi", serving.iron, "mg")
         }
     }
+}
 
 @Composable
 fun NutrientItem(label: String, value: Double, unit: String) {
