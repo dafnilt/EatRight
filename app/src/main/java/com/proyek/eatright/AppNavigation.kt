@@ -26,6 +26,7 @@ import com.proyek.eatright.ui.screen.FoodDetailScreen
 import com.proyek.eatright.ui.screen.LoginScreen
 import com.proyek.eatright.ui.screen.RegisterScreen
 import com.proyek.eatright.ui.screen.SplashScreen
+import com.proyek.eatright.ui.screen.OnboardingScreen
 import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
@@ -52,7 +53,7 @@ fun AppNavigation() {
 
     LaunchedEffect(authState) {
         if (authState == AuthState.Unauthenticated) {
-            navController.navigate("login") {
+            navController.navigate("onboarding") {
                 popUpTo(0) { inclusive = true }
             }
         }
@@ -125,9 +126,22 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "splash",
+            startDestination = "onboarding",
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Onboarding Screen as the first route
+            composable("onboarding") {
+                OnboardingScreen(
+                    navController = navController,
+                    onboardingComplete = {
+                        // Navigate to splash screen after completing onboarding
+                        navController.navigate("splash") {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             composable("splash") {
                 SplashScreen(
                     authState = authState,

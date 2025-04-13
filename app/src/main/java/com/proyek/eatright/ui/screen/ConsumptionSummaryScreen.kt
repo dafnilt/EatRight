@@ -2,11 +2,10 @@ package com.proyek.eatright.ui.screen
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -17,12 +16,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.proyek.eatright.data.model.DailyConsumption
 import com.proyek.eatright.data.model.FoodDetail
 import com.proyek.eatright.data.model.Serving
+import com.proyek.eatright.ui.theme.LightBlue2
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
 import kotlinx.coroutines.launch
@@ -48,12 +49,12 @@ fun ConsumptionSummaryScreen(
     val selectedDate = remember { mutableStateOf(System.currentTimeMillis()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.getDefault()) }
 
-    // Effect to load consumptions when the screen is displayed or date changes
+    // Load consumptions when date changes
     LaunchedEffect(selectedDate.value) {
         viewModel.loadUserConsumptions(selectedDate.value)
     }
 
-    // Effect to show snackbar when consumption state changes
+    // Show snackbar when consumption state changes
     LaunchedEffect(consumptionState) {
         when (consumptionState) {
             is com.proyek.eatright.viewmodel.ConsumptionState.Success -> {
@@ -75,746 +76,512 @@ fun ConsumptionSummaryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Konsumsi Harian") },
+                title = {
+                    Text(
+                        "Konsumsi Harian",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Kembali",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        // Wrap everything in a LazyColumn for better scrolling
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
+            // Date navigation header
             item {
-                // Date display and navigation
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = {
-                            val calendar = Calendar.getInstance()
-                            calendar.timeInMillis = selectedDate.value
-                            calendar.add(Calendar.DAY_OF_MONTH, -1)
-                            selectedDate.value = calendar.timeInMillis
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Previous Day"
-                        )
+                DateNavigationHeader(
+                    selectedDate = selectedDate.value,
+                    dateFormat = dateFormat,
+                    onPreviousDay = {
+                        val calendar = Calendar.getInstance()
+                        calendar.timeInMillis = selectedDate.value
+                        calendar.add(Calendar.DAY_OF_MONTH, -1)
+                        selectedDate.value = calendar.timeInMillis
+                    },
+                    onNextDay = {
+                        val calendar = Calendar.getInstance()
+                        calendar.timeInMillis = selectedDate.value
+                        calendar.add(Calendar.DAY_OF_MONTH, 1)
+                        selectedDate.value = calendar.timeInMillis
                     }
-
-                    Text(
-                        text = dateFormat.format(Date(selectedDate.value)),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    IconButton(
-                        onClick = {
-                            val calendar = Calendar.getInstance()
-                            calendar.timeInMillis = selectedDate.value
-                            calendar.add(Calendar.DAY_OF_MONTH, 1)
-                            selectedDate.value = calendar.timeInMillis
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = "Next Day"
-                        )
-                    }
-                }
+                )
             }
 
             // Loading indicator
             if (consumptionState is com.proyek.eatright.viewmodel.ConsumptionState.Loading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
+                item { LoadingIndicator() }
             }
 
             // Empty state
             if (userConsumptions.isEmpty() && consumptionState !is com.proyek.eatright.viewmodel.ConsumptionState.Loading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Belum ada konsumsi yang tercatat untuk hari ini",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
+                item { EmptyState() }
             } else if (userConsumptions.isNotEmpty()) {
-                // Calculate nutritional values
-                val nutritionTotals = calculateNutritionTotals(userConsumptions, foodDetailsCache)
+                // Calculate all nutrition data and thresholds
+                val nutritionData = calculateNutritionData(
+                    userConsumptions,
+                    foodDetailsCache,
+                    currentUser?.tinggiBadan ?: 0,
+                    currentUser?.gender ?: "",
+                    currentUser?.beratBadan ?: 0
+                )
 
-                val userHeight = currentUser?.tinggiBadan ?: 0 // Tinggi badan dalam cm
-                val userGender = currentUser?.gender ?: ""
-                val userWeight = currentUser?.beratBadan ?: 0 // Berat badan dalam kg
-
-                val idealWeight = calculateIdealWeight(userHeight, userGender)
-                val recommendedCalories = calculateRecommendedCalories(idealWeight, userWeight)
-
-                // Carbohidrat threshold calculation
-                val carbPercentage = if (nutritionTotals.totalCalories > 0) {
-                    (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
-                } else {
-                    0.0
-                }
-
-                val isCarbPercentageTooLow = carbPercentage < 45.0
-                val isCarbPercentageTooHigh = carbPercentage > 65.0
-                val isCarbTotalTooLow = nutritionTotals.totalCarbohydrate < 130.0
-
-                // Protein threshold calculation
-                val proteinPercentage = if (nutritionTotals.totalCalories > 0) {
-                    (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
-                } else {
-                    0.0
-                }
-                val isProteinTooLow = proteinPercentage < 10.0
-                val isProteinTooHigh = proteinPercentage > 35.0
-
-                // Fat threshold calculation
-                val fatPercentage = if (nutritionTotals.totalCalories > 0) {
-                    (nutritionTotals.totalFat * 9 / nutritionTotals.totalCalories.toDouble()) * 100
-                } else {
-                    0.0
-                }
-                val isFatTooLow = fatPercentage < 20.0
-                val isFatTooHigh = fatPercentage > 25.0
-
-                // Sugar threshold calculation
-                val isSugarTooHigh = nutritionTotals.totalSugar > 50.0
-
-                // Calories threshold calculation
-                val isCaloriesTooLow = recommendedCalories > 0 && nutritionTotals.totalCalories < (recommendedCalories * 0.9)
-                val isCaloriesTooHigh = recommendedCalories > 0 && nutritionTotals.totalCalories > (recommendedCalories * 1.1)
-
-                // Serat threshold calculation
-                val isFiberTooLow = nutritionTotals.totalFiber < 20.0
-                val isFiberTooHigh = nutritionTotals.totalFiber > 35.0
-
-                // Calories Warning Alert
-                if (isCaloriesTooLow || isCaloriesTooHigh) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Kalori",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    if (isCaloriesTooLow) {
-                                        Text(
-                                            text = "Konsumsi kalori Anda terlalu rendah (${nutritionTotals.totalCalories.toInt()} kcal). " +
-                                                    "Dianjurkan sekitar $recommendedCalories kcal per hari berdasarkan berat badan ideal Anda.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    } else if (isCaloriesTooHigh) {
-                                        Text(
-                                            text = "Konsumsi kalori Anda terlalu tinggi (${nutritionTotals.totalCalories.toInt()} kcal). " +
-                                                    "Dianjurkan sekitar $recommendedCalories kcal per hari berdasarkan berat badan ideal Anda.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Carbohidrat Warning Alert
-                if (isCarbPercentageTooLow || isCarbPercentageTooHigh || isCarbTotalTooLow) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Karbohidrat",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-
-                                    if (isCarbTotalTooLow) {
-                                        Text(
-                                            text = "Konsumsi karbohidrat Anda kurang dari 130g/hari (${String.format(
-                                                "%.1f",
-                                                nutritionTotals.totalCarbohydrate
-                                            )}g).",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-
-                                    if (isCarbPercentageTooLow || isCarbPercentageTooHigh) {
-                                        Text(
-                                            text = when {
-                                                isCarbPercentageTooLow -> "Persentase karbohidrat terlalu rendah (${
-                                                    String.format(
-                                                        "%.1f",
-                                                        carbPercentage
-                                                    )
-                                                }%). Dianjurkan: 45-65% dari total energi."
-                                                else -> "Persentase karbohidrat terlalu tinggi (${
-                                                    String.format(
-                                                        "%.1f",
-                                                        carbPercentage
-                                                    )
-                                                }%). Dianjurkan: 45-65% dari total energi."
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Protein Warning Alert
-                if (isProteinTooLow || isProteinTooHigh) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Protein",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    if (isProteinTooLow) {
-                                        Text(
-                                            text = "Konsumsi protein Anda terlalu rendah (${String.format(
-                                                "%.1f",
-                                                proteinPercentage
-                                            )}%). Dianjurkan: 10-35% dari total kalori.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    } else if (isProteinTooHigh) {
-                                        Text(
-                                            text = "Konsumsi protein Anda terlalu tinggi (${String.format(
-                                                "%.1f",
-                                                proteinPercentage
-                                            )}%). Dianjurkan: 10-35% dari total kalori.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Fat Warning Alert
-                if (isFatTooLow || isFatTooHigh) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Lemak",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    if (isFatTooLow) {
-                                        Text(
-                                            text = "Konsumsi lemak Anda terlalu rendah (${String.format(
-                                                "%.1f",
-                                                fatPercentage
-                                            )}%). Dianjurkan: 20-25% dari total kalori.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    } else if (isFatTooHigh) {
-                                        Text(
-                                            text = "Konsumsi lemak Anda terlalu tinggi (${String.format(
-                                                "%.1f",
-                                                fatPercentage
-                                            )}%). Dianjurkan: 20-25% dari total kalori.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Sugar Warning Alert
-                if (isSugarTooHigh) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Gula",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    Text(
-                                        text = "Konsumsi gula Anda terlalu tinggi (${String.format(
-                                            "%.1f",
-                                            nutritionTotals.totalSugar
-                                        )}g). Dianjurkan: maksimal 50g per hari.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Serat Warning Alert
-                if (isFiberTooLow || isFiberTooHigh) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Warning",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Peringatan Serat",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    Text(
-                                        text = when {
-                                            isFiberTooLow -> "Konsumsi serat Anda terlalu rendah (${String.format("%.1f", nutritionTotals.totalFiber)}g). " +
-                                                    "Dianjurkan 20-35g serat per hari."
-                                            else -> "Konsumsi serat Anda terlalu tinggi (${String.format("%.1f", nutritionTotals.totalFiber)}g). " +
-                                                    "Dianjurkan 20-35g serat per hari."
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Nutrition Summary Card
+                // Display warnings in a dropdown
                 item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Ringkasan Nutrisi",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Macro Nutrients Summary
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                NutrientSummary(
-                                    name = "Kalori",
-                                    value = "${nutritionTotals.totalCalories.toInt()} kcal",
-                                    isWarning = isCaloriesTooLow || isCaloriesTooHigh
-                                )
-                                NutrientSummary(
-                                    name = "Karbohidrat",
-                                    value = "${String.format("%.1f", nutritionTotals.totalCarbohydrate)}g",
-                                    isWarning = isCarbPercentageTooLow || isCarbPercentageTooHigh || isCarbTotalTooLow
-                                )
-                                NutrientSummary(
-                                    name = "Protein",
-                                    value = "${String.format("%.1f", nutritionTotals.totalProtein)}g",
-                                    isWarning = isProteinTooLow || isProteinTooHigh
-                                )
-                                NutrientSummary(
-                                    name = "Lemak",
-                                    value = "${String.format("%.1f", nutritionTotals.totalFat)}g",
-                                    isWarning = isFatTooLow || isFatTooHigh
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Detailed Nutrition Breakdown
-                            Column {
-                                NutritionDetailRow("Lemak Jenuh", nutritionTotals.totalSaturatedFat)
-                                NutritionDetailRow(
-                                    "Lemak Tak Jenuh Ganda",
-                                    nutritionTotals.totalPolyunsaturatedFat
-                                )
-                                NutritionDetailRow(
-                                    "Lemak Tak Jenuh Tunggal",
-                                    nutritionTotals.totalMonounsaturatedFat
-                                )
-                                NutritionDetailRow("Kolesterol", nutritionTotals.totalCholesterol)
-                                NutritionDetailRow("Sodium", nutritionTotals.totalSodium)
-                                NutritionDetailRow("Kalium", nutritionTotals.totalPotassium)
-                                NutritionDetailRow("Serat", nutritionTotals.totalFiber, isWarning = isFiberTooLow || isFiberTooHigh)
-                                NutritionDetailRow("Gula", nutritionTotals.totalSugar, isWarning = isSugarTooHigh)
-                                NutritionDetailRow("Vitamin A", nutritionTotals.totalVitaminA)
-                                NutritionDetailRow("Vitamin C", nutritionTotals.totalVitaminC)
-                                NutritionDetailRow("Kalsium", nutritionTotals.totalCalcium)
-                                NutritionDetailRow("Zat Besi", nutritionTotals.totalIron)
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Energy distribution
-                            if (nutritionTotals.totalCalories > 0) {
-                                val carbEnergyPercentage =
-                                    (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
-                                val proteinEnergyPercentage =
-                                    (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
-                                val fatEnergyPercentage =
-                                    (nutritionTotals.totalFat * 9 / nutritionTotals.totalCalories.toDouble()) * 100
-
-                                Text(
-                                    text = "Distribusi Energi",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    MacroPercentage(
-
-                                        name = "Karbohidrat",
-                                        percentage = carbEnergyPercentage,
-                                        isWarning = isCarbPercentageTooLow || isCarbPercentageTooHigh,
-                                        recommendedRange = "45-65%"
-                                    )
-                                    MacroPercentage(
-                                        name = "Protein",
-                                        percentage = proteinEnergyPercentage,
-                                        isWarning = isProteinTooLow || isProteinTooHigh,
-                                        recommendedRange = "10-35%"
-                                    )
-                                    MacroPercentage(
-                                        name = "Lemak",
-                                        percentage = fatEnergyPercentage,
-                                        isWarning = isFatTooLow || isFatTooHigh,
-                                        recommendedRange = "20-25%"
-                                    )
-                                }
-
-                                // Add recommended calorie information
-                                if (recommendedCalories > 0) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        text = "Kebutuhan Kalori Harian",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Rekomendasi: $recommendedCalories kcal",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-
-                                        Text(
-                                            text = "Konsumsi: ${nutritionTotals.totalCalories.toInt()} kcal",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isCaloriesTooLow || isCaloriesTooHigh)
-                                                MaterialTheme.colorScheme.error
-                                            else
-                                                Color.Unspecified
-                                        )
-                                    }
-
-                                    if (isCaloriesTooLow || isCaloriesTooHigh) {
-                                        Text(
-                                            text = when {
-                                                isCaloriesTooLow -> "Konsumsi kalori Anda terlalu rendah"
-                                                else -> "Konsumsi kalori Anda terlalu tinggi"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-
-                                // Add sugar limit information
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Text(
-                                    text = "Batas Konsumsi Gula",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Maksimal: 50g/hari",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-
-                                    Text(
-                                        text = "Konsumsi: ${String.format("%.1f", nutritionTotals.totalSugar)}g",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSugarTooHigh)
-                                            MaterialTheme.colorScheme.error
-                                        else
-                                            Color.Unspecified
-                                    )
-                                }
-
-                                if (isSugarTooHigh) {
-                                    Text(
-                                        text = "Konsumsi gula Anda melebihi batas harian",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    WarningsDropdown(nutritionData = nutritionData)
                 }
 
-                // List of consumptions grouped by meal type
-                val groupedConsumptions = userConsumptions.groupBy { it.mealType }
+                // Nutrition summary card
+                item {
+                    NutritionSummaryCard(nutritionData = nutritionData)
+                }
 
-                groupedConsumptions.forEach { (mealType, consumptions) ->
-                    item {
-                        Text(
-                            text = mealType,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                // Consumptions grouped by meal type
+                displayConsumptionsByMealType(
+                    userConsumptions = userConsumptions,
+                    foodDetailsCache = foodDetailsCache,
+                    onDeleteConsumption = { consumptionId ->
+                        coroutineScope.launch {
+                            viewModel.deleteConsumption(consumptionId)
+                        }
+                    },
+                    item = { content -> item { content() } },
+                    items = { items, content -> items(items) { content(it) } }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DateNavigationHeader(
+    selectedDate: Long,
+    dateFormat: SimpleDateFormat,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onPreviousDay) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Previous Day"
+            )
+        }
+
+        Text(
+            text = dateFormat.format(Date(selectedDate)),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        IconButton(onClick = onNextDay) {
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = "Next Day"
+            )
+        }
+    }
+}
+
+@Composable
+fun LoadingIndicator() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun EmptyState() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Belum ada konsumsi yang tercatat untuk hari ini",
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+// Data class to hold all nutrition calculations and thresholds
+data class NutritionData(
+    val totals: NutritionTotals,
+    val idealWeight: Double,
+    val recommendedCalories: Int,
+    val carbPercentage: Double,
+    val proteinPercentage: Double,
+    val fatPercentage: Double,
+    val thresholds: NutritionThresholds
+)
+
+data class NutritionThresholds(
+    val isCarbPercentageTooLow: Boolean,
+    val isCarbPercentageTooHigh: Boolean,
+    val isCarbTotalTooLow: Boolean,
+    val isProteinTooLow: Boolean,
+    val isProteinTooHigh: Boolean,
+    val isFatTooLow: Boolean,
+    val isFatTooHigh: Boolean,
+    val isSugarTooHigh: Boolean,
+    val isCaloriesTooLow: Boolean,
+    val isCaloriesTooHigh: Boolean,
+    val isFiberTooLow: Boolean,
+    val isFiberTooHigh: Boolean
+)
+
+// Calculate all nutrition data including thresholds
+fun calculateNutritionData(
+    userConsumptions: List<DailyConsumption>,
+    foodDetailsCache: Map<String, FoodDetail>,
+    userHeight: Int,
+    userGender: String,
+    userWeight: Int
+): NutritionData {
+    val nutritionTotals = calculateNutritionTotals(userConsumptions, foodDetailsCache)
+    val idealWeight = calculateIdealWeight(userHeight, userGender)
+    val recommendedCalories = calculateRecommendedCalories(idealWeight, userWeight)
+
+    // Calculate percentages
+    val carbPercentage = if (nutritionTotals.totalCalories > 0) {
+        (nutritionTotals.totalCarbohydrate * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+    } else 0.0
+
+    val proteinPercentage = if (nutritionTotals.totalCalories > 0) {
+        (nutritionTotals.totalProtein * 4 / nutritionTotals.totalCalories.toDouble()) * 100
+    } else 0.0
+
+    val fatPercentage = if (nutritionTotals.totalCalories > 0) {
+        (nutritionTotals.totalFat * 9 / nutritionTotals.totalCalories.toDouble()) * 100
+    } else 0.0
+
+    // Calculate thresholds
+    val thresholds = NutritionThresholds(
+        isCarbPercentageTooLow = carbPercentage < 45.0,
+        isCarbPercentageTooHigh = carbPercentage > 65.0,
+        isCarbTotalTooLow = nutritionTotals.totalCarbohydrate < 130.0,
+        isProteinTooLow = proteinPercentage < 10.0,
+        isProteinTooHigh = proteinPercentage > 35.0,
+        isFatTooLow = fatPercentage < 20.0,
+        isFatTooHigh = fatPercentage > 25.0,
+        isSugarTooHigh = nutritionTotals.totalSugar > 50.0,
+        isCaloriesTooLow = recommendedCalories > 0 && nutritionTotals.totalCalories < (recommendedCalories * 0.9),
+        isCaloriesTooHigh = recommendedCalories > 0 && nutritionTotals.totalCalories > (recommendedCalories * 1.1),
+        isFiberTooLow = nutritionTotals.totalFiber < 20.0,
+        isFiberTooHigh = nutritionTotals.totalFiber > 35.0
+    )
+
+    return NutritionData(
+        totals = nutritionTotals,
+        idealWeight = idealWeight,
+        recommendedCalories = recommendedCalories,
+        carbPercentage = carbPercentage,
+        proteinPercentage = proteinPercentage,
+        fatPercentage = fatPercentage,
+        thresholds = thresholds
+    )
+}
+
+// Display warnings in a dropdown
+@Composable
+fun WarningsDropdown(nutritionData: NutritionData) {
+    val thresholds = nutritionData.thresholds
+
+    // Count total warnings
+    val warningCount = countWarnings(thresholds)
+
+    // Only show dropdown if there are warnings
+    if (warningCount > 0) {
+        var expanded by remember { mutableStateOf(false) }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+            )
+        ) {
+            // Dropdown header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Warnings",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = "$warningCount Peringatan Nutrisi",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer { rotationZ = if (expanded) 90f else 270f }
+                )
+            }
+
+            // Expanded content with warnings
+            if (expanded) {
+                Divider(
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f),
+                    thickness = 1.dp
+                )
+
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Calories Warning
+                    if (thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh) {
+                        CompactWarningItem(
+                            title = "Kalori",
+                            message = if (thresholds.isCaloriesTooLow)
+                                "Terlalu rendah (${nutritionData.totals.totalCalories.toInt()} kcal). Dianjurkan: ${nutritionData.recommendedCalories} kcal/hari."
+                            else
+                                "Terlalu tinggi (${nutritionData.totals.totalCalories.toInt()} kcal). Dianjurkan: ${nutritionData.recommendedCalories} kcal/hari."
                         )
                     }
 
-                    items(consumptions) { consumption ->
-                        val foodDetail = foodDetailsCache[consumption.foodId]
-                        val serving = if (foodDetail != null &&
-                            consumption.servingIndex >= 0 &&
-                            consumption.servingIndex < foodDetail.servings.size
-                        ) {
-                            foodDetail.servings[consumption.servingIndex]
-                        } else null
-
-                        ConsumptionItem(
-                            consumption = consumption,
-                            foodDetail = foodDetail,
-                            serving = serving,
-                            onDelete = {
-                                coroutineScope.launch {
-                                    viewModel.deleteConsumption(consumption.id)
+                    // Carbohydrate Warning
+                    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow) {
+                        CompactWarningItem(
+                            title = "Karbohidrat",
+                            message = buildString {
+                                if (thresholds.isCarbTotalTooLow) {
+                                    append("Kurang dari 130g/hari (${String.format("%.1f", nutritionData.totals.totalCarbohydrate)}g). ")
+                                }
+                                if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh) {
+                                    append(
+                                        if (thresholds.isCarbPercentageTooLow)
+                                            "Persentase terlalu rendah (${String.format("%.1f", nutritionData.carbPercentage)}%). Dianjurkan: 45-65%."
+                                        else
+                                            "Persentase terlalu tinggi (${String.format("%.1f", nutritionData.carbPercentage)}%). Dianjurkan: 45-65%."
+                                    )
                                 }
                             }
+                        )
+                    }
+
+                    // Protein Warning
+                    if (thresholds.isProteinTooLow || thresholds.isProteinTooHigh) {
+                        CompactWarningItem(
+                            title = "Protein",
+                            message = if (thresholds.isProteinTooLow)
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.proteinPercentage)}%). Dianjurkan: 10-35%."
+                            else
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.proteinPercentage)}%). Dianjurkan: 10-35%."
+                        )
+                    }
+
+                    // Fat Warning
+                    if (thresholds.isFatTooLow || thresholds.isFatTooHigh) {
+                        CompactWarningItem(
+                            title = "Lemak",
+                            message = if (thresholds.isFatTooLow)
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.fatPercentage)}%). Dianjurkan: 20-25%."
+                            else
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.fatPercentage)}%). Dianjurkan: 20-25%."
+                        )
+                    }
+
+                    // Sugar Warning
+                    if (thresholds.isSugarTooHigh) {
+                        CompactWarningItem(
+                            title = "Gula",
+                            message = "Terlalu tinggi (${String.format("%.1f", nutritionData.totals.totalSugar)}g). Dianjurkan: maks. 50g/hari."
+                        )
+                    }
+
+                    // Fiber Warning
+                    if (thresholds.isFiberTooLow || thresholds.isFiberTooHigh) {
+                        CompactWarningItem(
+                            title = "Serat",
+                            message = if (thresholds.isFiberTooLow)
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.totals.totalFiber)}g). Dianjurkan: 20-35g/hari."
+                            else
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.totals.totalFiber)}g). Dianjurkan: 20-35g/hari."
                         )
                     }
                 }
             }
         }
+    }
+}
+
+// Helper to count total warnings
+fun countWarnings(thresholds: NutritionThresholds): Int {
+    var count = 0
+
+    // Count each warning category once
+    if (thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh) count++
+    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow) count++
+    if (thresholds.isProteinTooLow || thresholds.isProteinTooHigh) count++
+    if (thresholds.isFatTooLow || thresholds.isFatTooHigh) count++
+    if (thresholds.isSugarTooHigh) count++
+    if (thresholds.isFiberTooLow || thresholds.isFiberTooHigh) count++
+
+    return count
+}
+
+@Composable
+fun CompactWarningItem(title: String, message: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.error
+        )
+
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Divider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+            thickness = 0.5.dp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+// This component is no longer used, replaced by CompactWarningItem within WarningsDropdown
+// Keeping the function signature for backwards compatibility if needed
+@Composable
+fun WarningCard(title: String, message: String) {
+    CompactWarningItem(title = title, message = message)
+}
+
+@Composable
+fun NutrientSummary(
+    name: String,
+    value: String,
+    isWarning: Boolean = false
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Black
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Black
+        )
+    }
+}
+
+@Composable
+fun MacroPercentage(
+    name: String,
+    percentage: Double,
+    isWarning: Boolean = false,
+    recommendedRange: String = ""
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "${String.format("%.1f", percentage)}%",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
+        )
+        if (recommendedRange.isNotEmpty()) {
+            Text(
+                text = recommendedRange,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+fun NutritionDetailRow(label: String, value: Double, isWarning: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Black
+        )
+        Text(
+            text = "${String.format("%.1f", value)} ${getNutrientUnit(label)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Black
+        )
+    }
+}
+
+// Helper function to get appropriate unit for each nutrient
+fun getNutrientUnit(label: String): String {
+    return when (label) {
+        "Lemak Jenuh" -> "g"
+        "Lemak Tak Jenuh Ganda" -> "g"
+        "Lemak Tak Jenuh Tunggal" -> "g"
+        "Kolesterol" -> "mg"
+        "Sodium" -> "mg"
+        "Kalium" -> "mg"
+        "Serat" -> "g"
+        "Gula" -> "g"
+        "Vitamin A" -> "IU"
+        "Vitamin C" -> "mg"
+        "Kalsium" -> "mg"
+        "Zat Besi" -> "mg"
+        else -> ""
     }
 }
 
@@ -831,15 +598,8 @@ fun calculateIdealWeight(heightCm: Int, gender: String): Double {
 // Helper function to calculate recommended calories
 fun calculateRecommendedCalories(idealWeight: Double, currentWeight: Int): Int {
     val isObese = currentWeight > (idealWeight * 1.1)
-
-    // For obese patients, reduce by 500 calories from normal recommendation
     val baseCalories = (idealWeight * 30).toInt() // 30 calories per kg of ideal weight
-
-    return if (isObese) {
-        baseCalories - 500
-    } else {
-        baseCalories
-    }
+    return if (isObese) baseCalories - 500 else baseCalories
 }
 
 // Model class untuk menyimpan total nutrisi
@@ -933,6 +693,243 @@ fun calculateNutritionTotals(
 }
 
 @Composable
+fun NutritionSummaryCard(nutritionData: NutritionData) {
+    val totals = nutritionData.totals
+    val thresholds = nutritionData.thresholds
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp) // opsional, biar card kelihatan lebih "naik"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Ringkasan Nutrisi",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Macro nutrients summary
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                NutrientSummary(
+                    name = "Kalori",
+                    value = "${totals.totalCalories.toInt()} kcal",
+                    isWarning = thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh
+                )
+                NutrientSummary(
+                    name = "Karbohidrat",
+                    value = "${String.format("%.1f", totals.totalCarbohydrate)}g",
+                    isWarning = thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow
+                )
+                NutrientSummary(
+                    name = "Protein",
+                    value = "${String.format("%.1f", totals.totalProtein)}g",
+                    isWarning = thresholds.isProteinTooLow || thresholds.isProteinTooHigh
+                )
+                NutrientSummary(
+                    name = "Lemak",
+                    value = "${String.format("%.1f", totals.totalFat)}g",
+                    isWarning = thresholds.isFatTooLow || thresholds.isFatTooHigh
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Detailed nutrition breakdown
+            Column {
+                NutritionDetailRow("Lemak Jenuh", totals.totalSaturatedFat)
+                NutritionDetailRow("Lemak Tak Jenuh Ganda", totals.totalPolyunsaturatedFat)
+                NutritionDetailRow("Lemak Tak Jenuh Tunggal", totals.totalMonounsaturatedFat)
+                NutritionDetailRow("Kolesterol", totals.totalCholesterol)
+                NutritionDetailRow("Sodium", totals.totalSodium)
+                NutritionDetailRow("Kalium", totals.totalPotassium)
+                NutritionDetailRow("Serat", totals.totalFiber, isWarning = thresholds.isFiberTooLow || thresholds.isFiberTooHigh)
+                NutritionDetailRow("Gula", totals.totalSugar, isWarning = thresholds.isSugarTooHigh)
+                NutritionDetailRow("Vitamin A", totals.totalVitaminA)
+                NutritionDetailRow("Vitamin C", totals.totalVitaminC)
+                NutritionDetailRow("Kalsium", totals.totalCalcium)
+                NutritionDetailRow("Zat Besi", totals.totalIron)
+            }
+
+            // Energy distribution
+//            if (totals.totalCalories > 0) {
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                Text(
+//                    text = "Distribusi Energi",
+//                    style = MaterialTheme.typography.titleSmall,
+//                    fontWeight = FontWeight.Bold
+//                )
+//
+//                Spacer(modifier = Modifier.height(8.dp))
+//
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween
+//                ) {
+//                    MacroPercentage(
+//                        name = "Karbohidrat",
+//                        percentage = nutritionData.carbPercentage,
+//                        isWarning = thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh,
+//                        recommendedRange = "45-65%"
+//                    )
+//                    MacroPercentage(
+//                        name = "Protein",
+//                        percentage = nutritionData.proteinPercentage,
+//                        isWarning = thresholds.isProteinTooLow || thresholds.isProteinTooHigh,
+//                        recommendedRange = "10-35%"
+//                    )
+//                    MacroPercentage(
+//                        name = "Lemak",
+//                        percentage = nutritionData.fatPercentage,
+//                        isWarning = thresholds.isFatTooLow || thresholds.isFatTooHigh,
+//                        recommendedRange = "20-25%"
+//                    )
+//                }
+//
+//                // Recommended calorie information
+//                if (nutritionData.recommendedCalories > 0) {
+//                    Spacer(modifier = Modifier.height(16.dp))
+//
+//                    Text(
+//                        text = "Kebutuhan Kalori Harian",
+//                        style = MaterialTheme.typography.titleSmall,
+//                        fontWeight = FontWeight.Bold
+//                    )
+//
+//                    Spacer(modifier = Modifier.height(4.dp))
+//
+//                    Row(
+//                        modifier = Modifier.fillMaxWidth(),
+//                        horizontalArrangement = Arrangement.SpaceBetween,
+//                        verticalAlignment = Alignment.CenterVertically
+//                    ) {
+//                        Text(
+//                            text = "Rekomendasi: ${nutritionData.recommendedCalories} kcal",
+//                            style = MaterialTheme.typography.bodyMedium
+//                        )
+//
+//                        Text(
+//                            text = "Konsumsi: ${totals.totalCalories.toInt()} kcal",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            fontWeight = FontWeight.Bold,
+//                            color = if (thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh)
+//                                MaterialTheme.colorScheme.error
+//                            else
+//                                Color.Unspecified
+//                        )
+//                    }
+//
+//                    if (thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh) {
+//                        Text(
+//                            text = if (thresholds.isCaloriesTooLow)
+//                                "Konsumsi kalori Anda terlalu rendah"
+//                            else
+//                                "Konsumsi kalori Anda terlalu tinggi",
+//                            style = MaterialTheme.typography.bodySmall,
+//                            color = MaterialTheme.colorScheme.error
+//                        )
+//                    }
+//                }
+//
+//                // Sugar limit information
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                Text(
+//                    text = "Batas Konsumsi Gula",
+//                    style = MaterialTheme.typography.titleSmall,
+//                    fontWeight = FontWeight.Bold
+//                )
+//
+//                Spacer(modifier = Modifier.height(4.dp))
+//
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = "Maksimal: 50g/hari",
+//                        style = MaterialTheme.typography.bodyMedium
+//                    )
+//
+//                    Text(
+//                        text = "Konsumsi: ${String.format("%.1f", totals.totalSugar)}g",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        fontWeight = FontWeight.Bold,
+//                        color = if (thresholds.isSugarTooHigh)
+//                            MaterialTheme.colorScheme.error
+//                        else
+//                            Color.Unspecified
+//                    )
+//                }
+//
+//                if (thresholds.isSugarTooHigh) {
+//                    Text(
+//                        text = "Konsumsi gula Anda melebihi batas harian",
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.error
+//                    )
+//                }
+//            }
+        }
+    }
+}
+
+// Function to display consumption items grouped by meal type
+fun displayConsumptionsByMealType(
+    userConsumptions: List<DailyConsumption>,
+    foodDetailsCache: Map<String, FoodDetail>,
+    onDeleteConsumption: (String) -> Unit,
+    item: (@Composable () -> Unit) -> Unit,
+    items: (List<DailyConsumption>, @Composable (DailyConsumption) -> Unit) -> Unit
+) {
+    val groupedConsumptions = userConsumptions.groupBy { it.mealType }
+
+    groupedConsumptions.forEach { (mealType, consumptions) ->
+        item {
+            Text(
+                text = mealType,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
+        items(consumptions) { consumption ->
+            val foodDetail = foodDetailsCache[consumption.foodId]
+            val serving = if (foodDetail != null &&
+                consumption.servingIndex >= 0 &&
+                consumption.servingIndex < foodDetail.servings.size
+            ) {
+                foodDetail.servings[consumption.servingIndex]
+            } else null
+
+            ConsumptionItem(
+                consumption = consumption,
+                foodDetail = foodDetail,
+                serving = serving,
+                onDelete = { onDeleteConsumption(consumption.id) }
+            )
+        }
+    }
+}
+
+@Composable
 fun ConsumptionItem(
     consumption: DailyConsumption,
     foodDetail: FoodDetail?,
@@ -962,7 +959,6 @@ fun ConsumptionItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Tampilkan informasi serving jika tersedia
                 if (serving != null) {
                     Text(
                         text = "${consumption.quantity}x ${serving.servingDescription}",
@@ -972,7 +968,6 @@ fun ConsumptionItem(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Kalkulasi total kalori berdasarkan serving dan quantity
                     val totalCalories = serving.calories * consumption.quantity
                     Text(
                         text = "$totalCalories kcal",
@@ -1000,90 +995,3 @@ fun ConsumptionItem(
     }
 }
 
-@Composable
-fun NutrientSummary(
-    name: String,
-    value: String,
-    isWarning: Boolean = false
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
-        )
-    }
-}
-
-@Composable
-fun MacroPercentage(
-    name: String,
-    percentage: Double,
-    isWarning: Boolean = false,
-    recommendedRange: String = ""
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "${String.format("%.1f", percentage)}%",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
-        )
-        if (recommendedRange.isNotEmpty()) {
-            Text(
-                text = recommendedRange,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
-            )
-        }
-    }
-}
-
-@Composable
-fun NutritionDetailRow(label: String, value: Double, isWarning: Boolean = false) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "${String.format("%.1f", value)} ${getNutrientUnit(label)}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (isWarning) MaterialTheme.colorScheme.error else Color.Unspecified
-        )
-    }
-}
-
-// Helper function to get appropriate unit for each nutrient
-fun getNutrientUnit(label: String): String {
-    return when (label) {
-        "Lemak Jenuh" -> "g"
-        "Lemak Tak Jenuh Ganda" -> "g"
-        "Lemak Tak Jenuh Tunggal" -> "g"
-        "Kolesterol" -> "mg"
-        "Sodium" -> "mg"
-        "Kalium" -> "mg"
-        "Serat" -> "g"
-        "Gula" -> "g"
-        "Vitamin A" -> "IU"
-        "Vitamin C" -> "mg"
-        "Kalsium" -> "mg"
-        "Zat Besi" -> "mg"
-        else -> ""
-    }
-}
