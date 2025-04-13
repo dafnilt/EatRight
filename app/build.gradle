@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -69,12 +70,22 @@ dependencies {
     implementation 'oauth.signpost:signpost-commonshttp4:1.2.1.2'
     implementation 'se.akerfeldt:okhttp-signpost:1.1.0'
 
+    //Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation 'com.google.firebase:firebase-firestore-ktx:24.7.0'
+    implementation 'com.google.firebase:firebase-auth-ktx'
+    implementation 'com.google.firebase:firebase-core:21.1.1'
+
     // Other dependencies
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation libs.firebase.crashlytics.buildtools
     implementation libs.androidx.navigation.common.android
     implementation libs.androidx.navigation.compose
+    implementation libs.firebase.auth.ktx
+    implementation libs.firebase.firestore.ktx
+    implementation libs.androidx.datastore.core.android
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
@@ -82,5 +93,6 @@ dependencies {
     androidTestImplementation libs.androidx.ui.test.junit4
     debugImplementation libs.androidx.ui.tooling
     debugImplementation libs.androidx.ui.test.manifest
+
 
 }

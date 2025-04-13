@@ -1,21 +1,16 @@
 package com.proyek.eatright.viewmodel
 
 import android.os.Build
+import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.proyek.eatright.data.api.FatSecretApiService
 import com.proyek.eatright.data.model.FoodDetail
 import com.proyek.eatright.data.model.Serving
-import android.util.Log
-import androidx.annotation.RequiresApi
-import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.viewModelScope
-import com.proyek.eatright.data.model.Food
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 
 class FoodDetailViewModel : ViewModel() {
     private val apiService = FatSecretApiService()
