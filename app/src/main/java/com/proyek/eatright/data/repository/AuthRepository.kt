@@ -88,12 +88,105 @@ class AuthRepository {
                 return Result.failure(Exception("User tidak terautentikasi"))
             }
 
-            // Update data user di Firestore (tanpa password)
-            val userWithoutPassword = user.copy(password = "")
-            usersCollection.document(user.id).set(userWithoutPassword).await()
+            // Simpan email lama untuk perbandingan
+            val oldEmail = currentUser.email
+
+            // Debug logging
+            android.util.Log.d("AuthRepository", "Current Firebase Auth email: $oldEmail")
+            android.util.Log.d("AuthRepository", "New email to update: ${user.email}")
+            android.util.Log.d("AuthRepository", "Email needs update: ${user.email != oldEmail}")
+
+            var shouldUpdateFirestore = true
+            var firestoreUser = user.copy(password = "")
+
+            // Jika email berubah, kirim email verifikasi tapi jangan update Firestore dulu
+            if (user.email != oldEmail) {
+                android.util.Log.d("AuthRepository", "Email changed, sending verification email...")
+
+                // Cek apakah email baru sudah digunakan
+                checkEmailExists(user.email).fold(
+                    onSuccess = { emailExists ->
+                        if (emailExists) {
+                            android.util.Log.e("AuthRepository", "Email already exists in Firestore")
+                            return Result.failure(Exception("EMAIL_ALREADY_EXISTS"))
+                        } else {
+                            android.util.Log.d("AuthRepository", "Email available in Firestore")
+                        }
+                    },
+                    onFailure = { exception ->
+                        android.util.Log.e("AuthRepository", "Error checking email existence: ${exception.message}")
+                        return Result.failure(exception)
+                    }
+                )
+
+                try {
+                    // Kirim email verifikasi untuk email baru
+                    currentUser.verifyBeforeUpdateEmail(user.email).await()
+                    android.util.Log.d("AuthRepository", "Verification email sent successfully")
+
+                    // Jangan update email di Firestore sampai diverifikasi
+                    // Gunakan email lama di Firestore
+                    firestoreUser = user.copy(
+                        email = oldEmail ?: user.email,
+                        password = ""
+                    )
+
+                    android.util.Log.d("AuthRepository", "Email change pending verification. Firestore will keep old email: $oldEmail")
+
+                } catch (e: Exception) {
+                    android.util.Log.e("AuthRepository", "Failed to send verification email: ${e.message}")
+                    throw e
+                }
+            }
+
+            // Update data user di Firestore
+            android.util.Log.d("AuthRepository", "Updating user data in Firestore...")
+            android.util.Log.d("AuthRepository", "User ID: ${user.id}")
+            android.util.Log.d("AuthRepository", "User data: $firestoreUser")
+
+            usersCollection.document(user.id).set(firestoreUser).await()
+            android.util.Log.d("AuthRepository", "Firestore update completed successfully")
 
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Error in updateUserProfile: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    // Fungsi baru untuk mengecek dan mengupdate email setelah verifikasi
+    suspend fun checkAndUpdateEmailAfterVerification(userId: String, newEmail: String): Result<Unit> {
+        return try {
+            val currentUser = auth.currentUser
+            if (currentUser == null) {
+                return Result.failure(Exception("User tidak terautentikasi"))
+            }
+
+            // Reload user untuk mendapatkan status verifikasi terbaru
+            currentUser.reload().await()
+
+            // Cek apakah email sudah diverifikasi dan berubah
+            if (currentUser.email == newEmail) {
+                android.util.Log.d("AuthRepository", "Email verified and updated in Firebase Auth: $newEmail")
+
+                // Update email di Firestore juga
+                val documentSnapshot = usersCollection.document(userId).get().await()
+                val currentUserData = documentSnapshot.toObject(User::class.java)
+
+                if (currentUserData != null) {
+                    val updatedUserData = currentUserData.copy(email = newEmail)
+                    usersCollection.document(userId).set(updatedUserData).await()
+                    android.util.Log.d("AuthRepository", "Email updated in Firestore: $newEmail")
+                }
+
+                Result.success(Unit)
+            } else {
+                android.util.Log.d("AuthRepository", "Email not yet verified or changed")
+                Result.failure(Exception("Email belum diverifikasi"))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "Error checking email verification: ${e.message}")
             Result.failure(e)
         }
     }

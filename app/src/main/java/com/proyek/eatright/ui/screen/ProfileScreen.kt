@@ -32,6 +32,11 @@ import com.proyek.eatright.data.model.User
 import com.proyek.eatright.ui.theme.DarkBlue
 import com.proyek.eatright.ui.theme.LightBlue
 import com.proyek.eatright.viewmodel.AuthViewModel
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.util.Log
+import com.proyek.eatright.viewmodel.UpdateProfileState
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -64,9 +69,14 @@ fun ProfileScreen(
     var editedWeight by remember { mutableStateOf("") }
     var showGenderDropdown by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showEmailVerificationDialog by remember { mutableStateOf(false) }
+    var pendingNewEmail by remember { mutableStateOf("") }
 
     // Date picker state
     val datePickerState = rememberDatePickerState()
+    val updateProfileState by authViewModel.updateProfileState.collectAsState()
+
+
 
     // Initialize edit form when entering edit mode OR when user data changes
     LaunchedEffect(isEditing, currentUser) {
@@ -105,6 +115,40 @@ fun ProfileScreen(
         }
     }
 
+    // Handle update profile state changes
+    LaunchedEffect(updateProfileState) {
+        when (updateProfileState) {
+            is UpdateProfileState.EmailVerificationSent -> {
+                pendingNewEmail = (updateProfileState as UpdateProfileState.EmailVerificationSent).newEmail
+                showEmailVerificationDialog = true
+                isLoading = false
+            }
+            is UpdateProfileState.Success -> {
+                isLoading = false
+                isEditing = false
+            }
+            is UpdateProfileState.EmailVerified -> {
+                // Email berhasil diverifikasi dan diupdate
+                isLoading = false
+                if (showEmailVerificationDialog) {
+                    showEmailVerificationDialog = false
+                }
+            }
+            is UpdateProfileState.Loading -> {
+                isLoading = true
+            }
+            is UpdateProfileState.Error -> {
+                isLoading = false
+            }
+            else -> {}
+        }
+    }
+
+// Check email verification status when screen resumes
+    LaunchedEffect(Unit) {
+        authViewModel.checkEmailVerification()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -137,6 +181,12 @@ fun ProfileScreen(
                                 // Save changes
                                 currentUser?.let { user ->
                                     isLoading = true
+
+                                    // Debug logging
+                                    Log.d("ProfileScreen", "Original user email: ${user.email}")
+                                    Log.d("ProfileScreen", "New email: $editedEmail")
+                                    Log.d("ProfileScreen", "Email changed: ${user.email != editedEmail}")
+
                                     val updatedUser = user.copy(
                                         nama = editedName,
                                         email = editedEmail,
@@ -147,8 +197,14 @@ fun ProfileScreen(
                                         tinggiBadan = editedHeight.toIntOrNull() ?: 0,
                                         beratBadan = editedWeight.toIntOrNull() ?: 0
                                     )
+
+                                    Log.d("ProfileScreen", "Updated user email: ${updatedUser.email}")
+
                                     authViewModel.updateProfile(updatedUser) { success ->
-                                        isLoading = false
+                                        if (!success) {
+                                            isLoading = false
+                                        }
+                                        Log.d("ProfileScreen", "Update result: $success")
                                         if (success) {
                                             isEditing = false
                                         }
@@ -255,6 +311,63 @@ fun ProfileScreen(
                     )
                 }
             }
+        }
+
+        // Email Verification Dialog
+        if (showEmailVerificationDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showEmailVerificationDialog = false
+                    authViewModel.resetUpdateProfileState()
+                },
+                title = {
+                    Text(
+                        text = "Verifikasi Email",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "Email verifikasi telah dikirim ke:",
+                            color = TextGray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = pendingNewEmail,
+                            fontWeight = FontWeight.Medium,
+                            color = PrimaryPurple
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Silakan cek email Anda dan klik link verifikasi. Email di profil akan diperbarui setelah verifikasi berhasil.",
+                            color = TextGray,
+                            fontSize = 14.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showEmailVerificationDialog = false
+                            authViewModel.resetUpdateProfileState()
+                            isEditing = false
+                        }
+                    ) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            // Check if email has been verified
+                            authViewModel.checkEmailVerification()
+                        }
+                    ) {
+                        Text("Refresh")
+                    }
+                }
+            )
         }
 
         // Date Picker Dialog

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class AuthViewModel : ViewModel() {
     // Use lazy initialization
@@ -112,25 +113,84 @@ class AuthViewModel : ViewModel() {
     fun updateProfile(updatedUser: User, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _updateProfileState.value = UpdateProfileState.Loading
+
+            // Debug logging
+            android.util.Log.d("AuthViewModel", "Starting profile update...")
+            android.util.Log.d("AuthViewModel", "Current user: ${_currentUser.value}")
+            android.util.Log.d("AuthViewModel", "Updated user: $updatedUser")
+
+            val currentUser = _currentUser.value
+            val emailChanged = currentUser?.email != updatedUser.email
+
             try {
                 repository.updateUserProfile(updatedUser).fold(
                     onSuccess = {
-                        _currentUser.value = updatedUser
-                        _updateProfileState.value = UpdateProfileState.Success
+                        android.util.Log.d("AuthViewModel", "Profile update successful")
+
+                        if (emailChanged) {
+                            // Jika email berubah, update currentUser tapi tetap gunakan email lama
+                            // karena email baru belum diverifikasi
+                            val updatedUserWithOldEmail = updatedUser.copy(email = currentUser?.email ?: updatedUser.email)
+                            _currentUser.value = updatedUserWithOldEmail
+                            _updateProfileState.value = UpdateProfileState.EmailVerificationSent(updatedUser.email)
+                        } else {
+                            // Jika email tidak berubah, update seperti biasa
+                            _currentUser.value = updatedUser
+                            _updateProfileState.value = UpdateProfileState.Success
+                        }
                         onComplete(true)
                     },
                     onFailure = { exception ->
+                        android.util.Log.e("AuthViewModel", "Profile update failed: ${exception.message}")
+                        exception.printStackTrace()
                         _updateProfileState.value = UpdateProfileState.Error(
-                            exception.message ?: "Gagal memperbarui profil"
+                            getFirebaseErrorMessage(exception)
                         )
                         onComplete(false)
                     }
                 )
             } catch (e: Exception) {
+                android.util.Log.e("AuthViewModel", "Exception in updateProfile: ${e.message}")
+                e.printStackTrace()
                 _updateProfileState.value = UpdateProfileState.Error(
-                    "Error updating profile: ${e.message}"
+                    getFirebaseErrorMessage(e)
                 )
                 onComplete(false)
+            }
+        }
+    }
+
+    fun checkEmailVerification() {
+        viewModelScope.launch {
+            val currentUser = _currentUser.value
+            if (currentUser != null) {
+                try {
+                    // Cek apakah ada email yang sedang menunggu verifikasi
+                    val firebaseUser = auth.currentUser
+                    if (firebaseUser != null) {
+                        firebaseUser.reload().await()
+
+                        // Jika email di Firebase Auth berbeda dengan yang ada di currentUser,
+                        // berarti ada perubahan email yang sudah diverifikasi
+                        if (firebaseUser.email != currentUser.email) {
+                            repository.checkAndUpdateEmailAfterVerification(
+                                currentUser.id,
+                                firebaseUser.email ?: currentUser.email
+                            ).fold(
+                                onSuccess = {
+                                    // Update currentUser dengan email yang baru
+                                    _currentUser.value = currentUser.copy(email = firebaseUser.email ?: currentUser.email)
+                                    _updateProfileState.value = UpdateProfileState.EmailVerified
+                                },
+                                onFailure = { exception ->
+                                    android.util.Log.e("AuthViewModel", "Error updating email after verification: ${exception.message}")
+                                }
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AuthViewModel", "Error checking email verification: ${e.message}")
+                }
             }
         }
     }
@@ -173,6 +233,7 @@ class AuthViewModel : ViewModel() {
                     "ERROR_OPERATION_NOT_ALLOWED" -> "Operasi tidak diizinkan"
                     "ERROR_NETWORK_REQUEST_FAILED" -> "Koneksi internet bermasalah"
                     "ERROR_INVALID_CREDENTIAL" -> "Email atau password salah"
+                    "ERROR_REQUIRES_RECENT_LOGIN" -> "Untuk mengubah email, silakan login ulang terlebih dahulu"
                     else -> exception.message ?: "Terjadi kesalahan pada Firebase Auth"
                 }
             }
@@ -180,6 +241,8 @@ class AuthViewModel : ViewModel() {
                 when {
                     exception.message?.contains("EMAIL_ALREADY_EXISTS", ignoreCase = true) == true ->
                         "Email sudah terdaftar"
+                    exception.message?.contains("REQUIRES_RECENT_LOGIN", ignoreCase = true) == true ->
+                        "Untuk mengubah email, silakan login ulang terlebih dahulu"
                     exception.message?.contains("network", ignoreCase = true) == true ->
                         "Koneksi internet bermasalah"
                     exception.message?.contains("timeout", ignoreCase = true) == true ->
@@ -203,5 +266,7 @@ sealed class UpdateProfileState {
     object Initial : UpdateProfileState()
     object Loading : UpdateProfileState()
     object Success : UpdateProfileState()
+    object EmailVerified : UpdateProfileState()
+    data class EmailVerificationSent(val newEmail: String) : UpdateProfileState()
     data class Error(val message: String) : UpdateProfileState()
 }
