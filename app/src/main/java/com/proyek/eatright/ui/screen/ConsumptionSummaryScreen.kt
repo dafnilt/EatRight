@@ -243,7 +243,6 @@ data class NutritionData(
 data class NutritionThresholds(
     val isCarbPercentageTooLow: Boolean,
     val isCarbPercentageTooHigh: Boolean,
-    val isCarbTotalTooLow: Boolean,
     val isProteinTooLow: Boolean,
     val isProteinTooHigh: Boolean,
     val isFatTooLow: Boolean,
@@ -282,13 +281,12 @@ fun calculateNutritionData(
 
     // Calculate thresholds
     val thresholds = NutritionThresholds(
-        isCarbPercentageTooLow = carbPercentage < 45.0,
-        isCarbPercentageTooHigh = carbPercentage > 65.0,
-        isCarbTotalTooLow = nutritionTotals.totalCarbohydrate < 130.0,
-        isProteinTooLow = proteinPercentage < 10.0,
-        isProteinTooHigh = proteinPercentage > 35.0,
-        isFatTooLow = fatPercentage < 20.0,
-        isFatTooHigh = fatPercentage > 25.0,
+        isCarbPercentageTooLow = nutritionTotals.totalCarbohydrate < (recommendedCalories * 0.45 / 4),
+        isCarbPercentageTooHigh = nutritionTotals.totalCarbohydrate > (recommendedCalories * 0.65 / 4),
+        isProteinTooLow = nutritionTotals.totalProtein < (recommendedCalories * 0.10 / 4),
+        isProteinTooHigh = nutritionTotals.totalProtein > (recommendedCalories * 0.35 / 4),
+        isFatTooLow = nutritionTotals.totalFat < (recommendedCalories * 0.20 / 9),
+        isFatTooHigh = nutritionTotals.totalFat > (recommendedCalories * 0.25 / 9),
         isSugarTooHigh = nutritionTotals.totalSugar > 50.0,
         isCaloriesTooLow = recommendedCalories > 0 && nutritionTotals.totalCalories < (recommendedCalories * 0.9),
         isCaloriesTooHigh = recommendedCalories > 0 && nutritionTotals.totalCalories > (recommendedCalories * 1.1),
@@ -383,44 +381,44 @@ fun WarningsDropdown(nutritionData: NutritionData) {
                     }
 
                     // Carbohydrate Warning
-                    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow) {
+                    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh ) {
+                        val recommendedCarbMin = (nutritionData.recommendedCalories * 0.45 / 4).toInt()
+                        val recommendedCarbMax = (nutritionData.recommendedCalories * 0.65 / 4).toInt()
+
                         CompactWarningItem(
                             title = "Karbohidrat",
-                            message = buildString {
-                                if (thresholds.isCarbTotalTooLow) {
-                                    append("Kurang dari 130g/hari (${String.format("%.1f", nutritionData.totals.totalCarbohydrate)}g). ")
-                                }
-                                if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh) {
-                                    append(
-                                        if (thresholds.isCarbPercentageTooLow)
-                                            "Persentase terlalu rendah (${String.format("%.1f", nutritionData.carbPercentage)}%). Dianjurkan: 45-65%."
-                                        else
-                                            "Persentase terlalu tinggi (${String.format("%.1f", nutritionData.carbPercentage)}%). Dianjurkan: 45-65%."
-                                    )
-                                }
-                            }
+                            message = if (thresholds.isCarbPercentageTooLow)
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.totals.totalCarbohydrate)}g). Dianjurkan: ${recommendedCarbMin}-${recommendedCarbMax}g/hari."
+                            else
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.totals.totalCarbohydrate)}g). Dianjurkan: ${recommendedCarbMin}-${recommendedCarbMax}g/hari."
                         )
                     }
 
                     // Protein Warning
                     if (thresholds.isProteinTooLow || thresholds.isProteinTooHigh) {
+                        val recommendedProteinMin = (nutritionData.recommendedCalories * 0.10 / 4).toInt()
+                        val recommendedProteinMax = (nutritionData.recommendedCalories * 0.35 / 4).toInt()
+
                         CompactWarningItem(
                             title = "Protein",
                             message = if (thresholds.isProteinTooLow)
-                                "Terlalu rendah (${String.format("%.1f", nutritionData.proteinPercentage)}%). Dianjurkan: 10-35%."
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.totals.totalProtein)}g). Dianjurkan: ${recommendedProteinMin}-${recommendedProteinMax}g/hari."
                             else
-                                "Terlalu tinggi (${String.format("%.1f", nutritionData.proteinPercentage)}%). Dianjurkan: 10-35%."
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.totals.totalProtein)}g). Dianjurkan: ${recommendedProteinMin}-${recommendedProteinMax}g/hari."
                         )
                     }
 
                     // Fat Warning
                     if (thresholds.isFatTooLow || thresholds.isFatTooHigh) {
+                        val recommendedFatMin = (nutritionData.recommendedCalories * 0.20 / 9).toInt()
+                        val recommendedFatMax = (nutritionData.recommendedCalories * 0.25 / 9).toInt()
+
                         CompactWarningItem(
                             title = "Lemak",
                             message = if (thresholds.isFatTooLow)
-                                "Terlalu rendah (${String.format("%.1f", nutritionData.fatPercentage)}%). Dianjurkan: 20-25%."
+                                "Terlalu rendah (${String.format("%.1f", nutritionData.totals.totalFat)}g). Dianjurkan: ${recommendedFatMin}-${recommendedFatMax}g/hari."
                             else
-                                "Terlalu tinggi (${String.format("%.1f", nutritionData.fatPercentage)}%). Dianjurkan: 20-25%."
+                                "Terlalu tinggi (${String.format("%.1f", nutritionData.totals.totalFat)}g). Dianjurkan: ${recommendedFatMin}-${recommendedFatMax}g/hari."
                         )
                     }
 
@@ -454,7 +452,7 @@ fun countWarnings(thresholds: NutritionThresholds): Int {
 
     // Count each warning category once
     if (thresholds.isCaloriesTooLow || thresholds.isCaloriesTooHigh) count++
-    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow) count++
+    if (thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh ) count++
     if (thresholds.isProteinTooLow || thresholds.isProteinTooHigh) count++
     if (thresholds.isFatTooLow || thresholds.isFatTooHigh) count++
     if (thresholds.isSugarTooHigh) count++
@@ -733,7 +731,7 @@ fun NutritionSummaryCard(nutritionData: NutritionData) {
                 NutrientSummary(
                     name = "Karbohidrat",
                     value = "${String.format("%.1f", totals.totalCarbohydrate)}g",
-                    isWarning = thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh || thresholds.isCarbTotalTooLow
+                    isWarning = thresholds.isCarbPercentageTooLow || thresholds.isCarbPercentageTooHigh
                 )
                 NutrientSummary(
                     name = "Protein",
