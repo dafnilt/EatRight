@@ -51,10 +51,19 @@ fun AppNavigation() {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
+    // Hanya navigasi ke onboarding jika benar-benar logout atau belum pernah login
     LaunchedEffect(authState) {
-        if (authState == AuthState.Unauthenticated) {
-            navController.navigate("onboarding") {
-                popUpTo(0) { inclusive = true }
+        when (authState) {
+            is AuthState.Unauthenticated -> {
+                // Hanya navigasi jika bukan sedang di halaman auth (login/register)
+                if (currentRoute !in listOf("login", "register", "onboarding")) {
+                    navController.navigate("onboarding") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            else -> {
+                // Tidak melakukan navigasi otomatis untuk state lain
             }
         }
     }

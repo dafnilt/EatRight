@@ -91,6 +91,8 @@ class AuthViewModel : ViewModel() {
                         _authState.value = AuthState.Authenticated
                     },
                     onFailure = { exception ->
+                        // Tetap di halaman register dengan menampilkan error
+                        // Jangan ubah ke Unauthenticated
                         _authState.value = AuthState.Error(
                             getFirebaseErrorMessage(exception)
                         )
@@ -116,10 +118,9 @@ class AuthViewModel : ViewModel() {
 
     fun resetAuthState() {
         try {
-            _authState.value = if (auth.currentUser != null)
-                AuthState.Authenticated
-            else
-                AuthState.Unauthenticated
+            // Jangan reset ke Unauthenticated jika sedang di halaman register/login
+            // Reset ke Initial state supaya tidak trigger navigation
+            _authState.value = AuthState.Initial
         } catch (e: Exception) {
             _authState.value = AuthState.Error("Error resetting state: ${e.message}")
         }
@@ -144,6 +145,8 @@ class AuthViewModel : ViewModel() {
             }
             else -> {
                 when {
+                    exception.message?.contains("EMAIL_ALREADY_EXISTS", ignoreCase = true) == true ->
+                        "Email sudah terdaftar"
                     exception.message?.contains("network", ignoreCase = true) == true ->
                         "Koneksi internet bermasalah"
                     exception.message?.contains("timeout", ignoreCase = true) == true ->

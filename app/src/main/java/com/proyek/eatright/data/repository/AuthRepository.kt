@@ -13,8 +13,33 @@ class AuthRepository {
     private val firestore by lazy { FirebaseFirestore.getInstance() }
     private val usersCollection by lazy { firestore.collection("users") }
 
+    suspend fun checkEmailExists(email: String): Result<Boolean> {
+        return try {
+            val querySnapshot = usersCollection
+                .whereEqualTo("email", email)
+                .get()
+                .await()
+
+            Result.success(!querySnapshot.isEmpty)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun register(user: User): Result<FirebaseUser> {
         return try {
+            // Check if email already exists in Firestore
+            checkEmailExists(user.email).fold(
+                onSuccess = { emailExists ->
+                    if (emailExists) {
+                        return Result.failure(Exception("EMAIL_ALREADY_EXISTS"))
+                    }
+                },
+                onFailure = { exception ->
+                    return Result.failure(exception)
+                }
+            )
+
             // Buat akun dengan email dan password
             val authResult = auth.createUserWithEmailAndPassword(user.email, user.password).await()
 
