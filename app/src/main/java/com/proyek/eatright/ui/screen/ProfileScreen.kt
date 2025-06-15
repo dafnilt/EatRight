@@ -301,13 +301,15 @@ fun ProfileScreen(
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Edit Profile",
-                        modifier = Modifier.size(20.dp)
-                    )
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                        )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Edit Profile",
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
                     )
                 }
             }
