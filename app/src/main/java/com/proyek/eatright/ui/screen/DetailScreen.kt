@@ -476,12 +476,6 @@ fun MacroLegendItem(
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
-        Text(
-            text = "(${String.format("%.0f", percentage)}%)",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray,
-            textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -818,7 +812,7 @@ fun ImprovedMacroSummaryItem(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Value with unit
+        // Value with unitco
         Text(
             text = String.format("%.1f", value),
             style = MaterialTheme.typography.titleMedium,
