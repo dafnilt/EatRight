@@ -79,6 +79,11 @@ fun DashboardScreen(
     val idealWeight = calculateIdealWeightInDashboard(userHeight, userGender)
     val recommendedCalories = calculateRecommendedCaloriesInDashboard(idealWeight, userWeight)
 
+    // Calculate recommended nutrients based on calories
+    val recommendedCarbsMin = (recommendedCalories * 0.45 / 4).toInt()
+    val recommendedCarbsMax = (recommendedCalories * 0.65 / 4).toInt()
+    val recommendedSugarMax = 50 // WHO recommendation: max 50g sugar per day
+
     // Load user consumptions when screen is first displayed
     LaunchedEffect(Unit) {
         consumptionViewModel.loadUserConsumptions()
@@ -120,7 +125,7 @@ fun DashboardScreen(
                     Text(
                         text = "Selamat datang!",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = Color.Black
                     )
 
                     Text(
@@ -209,42 +214,48 @@ fun DashboardScreen(
                 )
             }
 
-            // Nutritional Cards with circular indicators
+            // Nutritional Cards with circular indicators and recommendations
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Calories Card with circular indicator
+                // Calories Card with circular indicator and recommendation
                 CircularNutritionCardInDashboard(
                     title = "Kalori",
                     value = totalCalories.toInt().toString(),
                     unit = "kkal",
-                    color = LightBlue2,
-                    progress = 0.65f,
+                    color = DarkBlue,
+                    progress = if (recommendedCalories > 0) {
+                        (totalCalories.toFloat() / recommendedCalories.toFloat()).coerceIn(0f, 1f)
+                    } else 0f,
+                    recommendation = "\nTarget:\n ${recommendedCalories} kkal/hari",
                     modifier = Modifier.weight(1f)
                 )
 
+
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Carbs Card with circular indicator
+                // Carbs Card with circular indicator and recommendation
                 CircularNutritionCardInDashboard(
                     title = "Karbohidrat",
                     value = String.format("%.1f", totalCarbs),
                     unit = "g",
-                    color = Yellow.copy(alpha = 0.7f),
-                    progress = 0.45f,
+                    color = Yellow,
+                    progress = if (recommendedCarbsMax > 0) (totalCarbs / recommendedCarbsMax).toFloat().coerceIn(0f, 1f) else 0f,
+                    recommendation = "\nTarget:\n${recommendedCarbsMin}-${recommendedCarbsMax}g/hari",
                     modifier = Modifier.weight(1f)
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Sugar Card with circular indicator
+                // Sugar Card with circular indicator and recommendation
                 CircularNutritionCardInDashboard(
                     title = "Gula",
                     value = String.format("%.1f", totalSugar),
                     unit = "g",
                     color = Pink80,
-                    progress = 0.3f,
+                    progress = (totalSugar / recommendedSugarMax).toFloat().coerceIn(0f, 1f),
+                    recommendation = "\nMaks.\n${recommendedSugarMax}g/hari",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -298,6 +309,7 @@ fun TopBarActionsInDashboard(
         }
     }
 }
+
 @Composable
 fun HealthInfoCard(
     title: String,
@@ -325,7 +337,7 @@ fun HealthInfoCard(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
+                color = Color.Black,
                 textAlign = TextAlign.Center
             )
 
@@ -376,11 +388,12 @@ fun CircularNutritionCardInDashboard(
     unit: String,
     color: Color,
     progress: Float,
+    recommendation: String,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
-            .height(160.dp),
+            .height(180.dp), // Increased height to accommodate recommendation text
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp)
@@ -389,57 +402,84 @@ fun CircularNutritionCardInDashboard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(12.dp),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Title
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
+                color = Color.Black,
                 textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // Circular progress indicator with centered value
             Box(
                 modifier = Modifier
-                    .size(80.dp),
+                    .size(70.dp), // Slightly smaller to fit with recommendation
                 contentAlignment = Alignment.Center
             ) {
                 // Background circle
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(70.dp)
                         .clip(CircleShape)
                         .background(color.copy(alpha = 0.1f))
                 )
 
-                // Progress indicator
+                // Progress indicator - dinamis berdasarkan progress value
                 CircularProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier.size(80.dp),
+                    progress = progress.coerceIn(0f, 1f), // Pastikan progress tidak lebih dari 1
+                    modifier = Modifier.size(70.dp),
                     color = color,
-                    strokeWidth = 8.dp
+                    strokeWidth = 6.dp,
+                    trackColor = color.copy(alpha = 0.2f) // Tambahkan track color agar terlihat background lingkaran
                 )
 
                 // Value text
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = color
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Black,
+                        fontSize = 10.sp
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Recommendation text with percentage
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Percentage text
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp
+                )
 
-            Text(
-                text = unit,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
+                Text(
+                    text = recommendation,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF666666),
+                    textAlign = TextAlign.Center,
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp
+                )
+
+
+            }
         }
     }
 }
