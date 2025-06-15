@@ -51,13 +51,28 @@ fun AppNavigation() {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
-    // Hanya navigasi ke onboarding jika benar-benar logout atau belum pernah login
+    // Tentukan startDestination berdasarkan auth state
+    val startDestination = when (authState) {
+        is AuthState.Authenticated -> "main"
+        is AuthState.Initial, is AuthState.Loading -> "splash"
+        else -> "splash" // Untuk Unauthenticated dan Error, mulai dari splash
+    }
+
+    // Handle navigation based on auth state changes
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Unauthenticated -> {
-                // Hanya navigasi jika bukan sedang di halaman auth (login/register)
-                if (currentRoute !in listOf("login", "register", "onboarding")) {
-                    navController.navigate("onboarding") {
+                // Hanya navigasi jika bukan sedang di halaman auth
+                if (currentRoute !in listOf("login", "register", "onboarding", "splash")) {
+                    navController.navigate("splash") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            is AuthState.Authenticated -> {
+                // Navigasi ke main jika berhasil login/register dan tidak sedang di main
+                if (currentRoute !in listOf("main", "search", "consumption_summary", "food_detail/{foodId}")) {
+                    navController.navigate("main") {
                         popUpTo(0) { inclusive = true }
                     }
                 }
@@ -135,22 +150,10 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "onboarding",
+            startDestination = "splash", // Selalu mulai dari splash
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Onboarding Screen as the first route
-            composable("onboarding") {
-                OnboardingScreen(
-                    navController = navController,
-                    onboardingComplete = {
-                        // Navigate to splash screen after completing onboarding
-                        navController.navigate("splash") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    }
-                )
-            }
-
+            // Splash screen akan menentukan kemana user diarahkan
             composable("splash") {
                 SplashScreen(
                     authState = authState,
@@ -162,6 +165,24 @@ fun AppNavigation() {
                     onNavigateToMain = {
                         navController.navigate("main") {
                             popUpTo("splash") { inclusive = true }
+                        }
+                    },
+                    onNavigateToOnboarding = {
+                        navController.navigate("onboarding") {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // Onboarding hanya untuk pengguna baru
+            composable("onboarding") {
+                OnboardingScreen(
+                    navController = navController,
+                    onboardingComplete = {
+                        // Navigate to login after completing onboarding
+                        navController.navigate("login") {
+                            popUpTo("onboarding") { inclusive = true }
                         }
                     }
                 )

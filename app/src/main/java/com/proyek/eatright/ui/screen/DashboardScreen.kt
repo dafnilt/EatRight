@@ -138,6 +138,14 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            Text(
+                text = "Target Ideal Kamu",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             // Ideal Weight and Recommended Calories Cards
             Row(
                 modifier = Modifier
