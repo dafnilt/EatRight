@@ -27,6 +27,7 @@ import com.proyek.eatright.ui.screen.LoginScreen
 import com.proyek.eatright.ui.screen.RegisterScreen
 import com.proyek.eatright.ui.screen.SplashScreen
 import com.proyek.eatright.ui.screen.OnboardingScreen
+import com.proyek.eatright.ui.screen.ProfileScreen
 import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
@@ -71,7 +72,7 @@ fun AppNavigation() {
             }
             is AuthState.Authenticated -> {
                 // Navigasi ke main jika berhasil login/register dan tidak sedang di main
-                if (currentRoute !in listOf("main", "search", "consumption_summary", "food_detail/{foodId}")) {
+                if (currentRoute !in listOf("main", "search", "consumption_summary", "food_detail/{foodId}", "profile")) {
                     navController.navigate("main") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -210,6 +211,9 @@ fun AppNavigation() {
                     onConsumptionSummaryClick = {
                         navController.navigate("consumption_summary")
                     },
+                    onProfileClick = {
+                        navController.navigate("profile")
+                    },
                     viewModel = foodSearchViewModel,
                     authViewModel = authViewModel,
                     consumptionViewModel = consumptionViewModel
@@ -242,6 +246,14 @@ fun AppNavigation() {
             composable("consumption_summary") {
                 ConsumptionSummaryScreen(
                     onBack = { navController.popBackStack() },
+                )
+            }
+
+            // Profile Screen
+            composable("profile") {
+                ProfileScreen(
+                    onBack = { navController.popBackStack() },
+                    authViewModel = authViewModel
                 )
             }
         }

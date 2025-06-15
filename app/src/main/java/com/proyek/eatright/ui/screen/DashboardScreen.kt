@@ -47,6 +47,7 @@ import java.util.*
 fun DashboardScreen(
     onFoodClick: (String) -> Unit,
     onConsumptionSummaryClick: () -> Unit,
+    onProfileClick: () -> Unit,
     viewModel: FoodSearchViewModel,
     authViewModel: AuthViewModel,
     consumptionViewModel: ConsumptionViewModel
@@ -91,7 +92,10 @@ fun DashboardScreen(
                     // Empty or add icon if needed
                 },
                 actions = {
-                    TopBarActionsInDashboard(authViewModel = authViewModel)
+                    TopBarActionsInDashboard(
+                        authViewModel = authViewModel,
+                        onProfileClick = onProfileClick
+                    )
                     Spacer(modifier = Modifier.width(16.dp))
                 }
             )
@@ -251,7 +255,10 @@ fun DashboardScreen(
 }
 
 @Composable
-fun TopBarActionsInDashboard(authViewModel: AuthViewModel) {
+fun TopBarActionsInDashboard(
+    authViewModel: AuthViewModel,
+    onProfileClick: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(
@@ -272,17 +279,25 @@ fun TopBarActionsInDashboard(authViewModel: AuthViewModel) {
             onDismissRequest = { expanded = false }
         ) {
             DropdownMenuItem(
+                text = { Text("Profile") },
+                onClick = {
+                    expanded = false
+                    onProfileClick()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            DropdownMenuItem(
                 text = { Text("Logout") },
                 onClick = {
                     expanded = false
                     authViewModel.logout()
-                    // Navigation will be triggered from AppNavigation
                 }
             )
         }
     }
 }
-
 @Composable
 fun HealthInfoCard(
     title: String,
