@@ -80,6 +80,24 @@ class AuthRepository {
         }
     }
 
+    suspend fun updateUserProfile(user: User): Result<Unit> {
+        return try {
+            // Pastikan user sudah login
+            val currentUser = auth.currentUser
+            if (currentUser == null) {
+                return Result.failure(Exception("User tidak terautentikasi"))
+            }
+
+            // Update data user di Firestore (tanpa password)
+            val userWithoutPassword = user.copy(password = "")
+            usersCollection.document(user.id).set(userWithoutPassword).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun logout() {
         auth.signOut()
     }

@@ -22,6 +22,9 @@ class AuthViewModel : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    private val _updateProfileState = MutableStateFlow<UpdateProfileState>(UpdateProfileState.Initial)
+    val updateProfileState: StateFlow<UpdateProfileState> = _updateProfileState.asStateFlow()
+
     init {
         val firebaseUser = auth.currentUser
         if (firebaseUser != null) {
@@ -106,6 +109,36 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    fun updateProfile(updatedUser: User, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _updateProfileState.value = UpdateProfileState.Loading
+            try {
+                repository.updateUserProfile(updatedUser).fold(
+                    onSuccess = {
+                        _currentUser.value = updatedUser
+                        _updateProfileState.value = UpdateProfileState.Success
+                        onComplete(true)
+                    },
+                    onFailure = { exception ->
+                        _updateProfileState.value = UpdateProfileState.Error(
+                            exception.message ?: "Gagal memperbarui profil"
+                        )
+                        onComplete(false)
+                    }
+                )
+            } catch (e: Exception) {
+                _updateProfileState.value = UpdateProfileState.Error(
+                    "Error updating profile: ${e.message}"
+                )
+                onComplete(false)
+            }
+        }
+    }
+
+    fun resetUpdateProfileState() {
+        _updateProfileState.value = UpdateProfileState.Initial
+    }
+
     fun logout() {
         try {
             repository.logout()
@@ -164,4 +197,11 @@ sealed class AuthState {
     object Authenticated : AuthState()
     object Unauthenticated : AuthState()
     data class Error(val message: String) : AuthState()
+}
+
+sealed class UpdateProfileState {
+    object Initial : UpdateProfileState()
+    object Loading : UpdateProfileState()
+    object Success : UpdateProfileState()
+    data class Error(val message: String) : UpdateProfileState()
 }

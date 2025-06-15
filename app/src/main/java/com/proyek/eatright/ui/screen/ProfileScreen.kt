@@ -2,10 +2,12 @@ package com.proyek.eatright.ui.screen
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,19 +50,79 @@ fun ProfileScreen(
 ) {
     val currentUser by authViewModel.currentUser.collectAsState()
     val scrollState = rememberScrollState()
+    var isEditing by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    // Edit form states - akan di-reset setiap kali masuk edit mode
+    var editedName by remember { mutableStateOf("") }
+    var editedEmail by remember { mutableStateOf("") }
+    var editedUsername by remember { mutableStateOf("") }
+    var editedPhone by remember { mutableStateOf("") }
+    var editedBirthDate by remember { mutableStateOf("") }
+    var editedGender by remember { mutableStateOf("") }
+    var editedHeight by remember { mutableStateOf("") }
+    var editedWeight by remember { mutableStateOf("") }
+    var showGenderDropdown by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    // Date picker state
+    val datePickerState = rememberDatePickerState()
+
+    // Initialize edit form when entering edit mode OR when user data changes
+    LaunchedEffect(isEditing, currentUser) {
+        if (isEditing) {
+            currentUser?.let { user ->
+                editedName = user.nama
+                editedEmail = user.email
+                editedUsername = user.username ?: ""
+                editedPhone = user.noTelp
+                editedBirthDate = user.tanggalLahir
+                editedGender = user.gender
+                editedHeight = if (user.tinggiBadan > 0) user.tinggiBadan.toString() else ""
+                editedWeight = if (user.beratBadan > 0) user.beratBadan.toString() else ""
+
+                // Set date picker state based on current birth date
+                if (user.tanggalLahir.isNotEmpty()) {
+                    try {
+                        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        val date = sdf.parse(user.tanggalLahir)
+                        date?.let {
+                            datePickerState.selectedDateMillis = it.time
+                        }
+                    } catch (e: Exception) {
+                        // If parsing fails, leave datePickerState as is
+                    }
+                }
+            }
+        }
+    }
+
+    // Handle date picker result
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        datePickerState.selectedDateMillis?.let { millis ->
+            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            editedBirthDate = sdf.format(Date(millis))
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Profile",
+                        text = if (isEditing) "Edit Profile" else "Profile",
                         color = Color.Black,
                         fontWeight = FontWeight.Medium
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (isEditing) {
+                            isEditing = false
+                        } else {
+                            onBack()
+                        }
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -67,35 +130,440 @@ fun ProfileScreen(
                         )
                     }
                 },
+                actions = {
+                    if (isEditing) {
+                        TextButton(
+                            onClick = {
+                                // Save changes
+                                currentUser?.let { user ->
+                                    isLoading = true
+                                    val updatedUser = user.copy(
+                                        nama = editedName,
+                                        email = editedEmail,
+                                        username = editedUsername.takeIf { it.isNotEmpty() },
+                                        noTelp = editedPhone,
+                                        tanggalLahir = editedBirthDate,
+                                        gender = editedGender,
+                                        tinggiBadan = editedHeight.toIntOrNull() ?: 0,
+                                        beratBadan = editedWeight.toIntOrNull() ?: 0
+                                    )
+                                    authViewModel.updateProfile(updatedUser) { success ->
+                                        isLoading = false
+                                        if (success) {
+                                            isEditing = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isLoading
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = PrimaryPurple,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Simpan",
+                                    color = PrimaryPurple,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(scrollState)
-                .background(VeryLightPurple)
         ) {
-            currentUser?.let { user ->
-                ProfileHeader(user = user)
-                ProfileInfoSection(user = user)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .background(VeryLightPurple)
+                    .padding(bottom = if (!isEditing) 80.dp else 0.dp) // Add padding for button
+            ) {
+                currentUser?.let { user ->
+                    if (isEditing) {
+                        EditProfileContent(
+                            user = user,
+                            editedName = editedName,
+                            editedEmail = editedEmail,
+                            editedUsername = editedUsername,
+                            editedPhone = editedPhone,
+                            editedBirthDate = editedBirthDate,
+                            editedGender = editedGender,
+                            editedHeight = editedHeight,
+                            editedWeight = editedWeight,
+                            showGenderDropdown = showGenderDropdown,
+                            onNameChange = { editedName = it },
+                            onEmailChange = { editedEmail = it },
+                            onUsernameChange = { editedUsername = it },
+                            onPhoneChange = { editedPhone = it },
+                            onBirthDateClick = { showDatePicker = true },
+                            onGenderChange = {
+                                editedGender = it
+                                showGenderDropdown = false
+                            },
+                            onHeightChange = { editedHeight = it },
+                            onWeightChange = { editedWeight = it },
+                            onGenderDropdownToggle = { showGenderDropdown = !showGenderDropdown }
+                        )
+                    } else {
+                        ProfileHeader(user = user)
+                        ProfileInfoSection(user = user)
+                    }
+                } ?: run {
+                    // Loading state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = PrimaryPurple)
+                    }
+                }
+            }
 
-            } ?: run {
-                // Loading state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            // Edit Profile Button - only show when not editing
+            if (!isEditing && currentUser != null) {
+                Button(
+                    onClick = { isEditing = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryPurple
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    CircularProgressIndicator(color = PrimaryPurple)
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Profile",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Edit Profile",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Date Picker Dialog
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDateSelected = { selectedDate ->
+                    selectedDate?.let {
+                        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        editedBirthDate = sdf.format(Date(it))
+                    }
+                    showDatePicker = false
+                },
+                onDismiss = {
+                    showDatePicker = false
+                },
+                datePickerState = datePickerState
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditProfileContent(
+    user: User,
+    editedName: String,
+    editedEmail: String,
+    editedUsername: String,
+    editedPhone: String,
+    editedBirthDate: String,
+    editedGender: String,
+    editedHeight: String,
+    editedWeight: String,
+    showGenderDropdown: Boolean,
+    onNameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
+    onBirthDateClick: () -> Unit,
+    onGenderChange: (String) -> Unit,
+    onHeightChange: (String) -> Unit,
+    onWeightChange: (String) -> Unit,
+    onGenderDropdownToggle: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        // Profile Picture (non-editable for now)
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(LightPurple)
+                .align(Alignment.CenterHorizontally),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "Profile Picture",
+                modifier = Modifier.size(40.dp),
+                tint = PrimaryPurple
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Name Field
+        OutlinedTextField(
+            value = editedName,
+            onValueChange = onNameChange,
+            label = { Text("Nama") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryPurple,
+                focusedLabelColor = PrimaryPurple
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Email Field
+        OutlinedTextField(
+            value = editedEmail,
+            onValueChange = onEmailChange,
+            label = { Text("Email") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryPurple,
+                focusedLabelColor = PrimaryPurple
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Username Field
+        OutlinedTextField(
+            value = editedUsername,
+            onValueChange = onUsernameChange,
+            label = { Text("Username (Opsional)") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryPurple,
+                focusedLabelColor = PrimaryPurple
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Phone Field
+        OutlinedTextField(
+            value = editedPhone,
+            onValueChange = onPhoneChange,
+            label = { Text("No. Telepon") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryPurple,
+                focusedLabelColor = PrimaryPurple
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Birth Date Field with Date Picker
+        OutlinedTextField(
+            value = editedBirthDate,
+            onValueChange = { }, // Read-only
+            label = { Text("Tanggal Lahir") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBirthDateClick() },
+            enabled = false,
+            placeholder = { Text("Pilih tanggal lahir") },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = "Pilih tanggal",
+                    tint = PrimaryPurple,
+                    modifier = Modifier.clickable { onBirthDateClick() }
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledBorderColor = PrimaryPurple.copy(alpha = 0.5f),
+                disabledLabelColor = PrimaryPurple.copy(alpha = 0.7f),
+                disabledTextColor = TextDark
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Gender Dropdown
+        ExposedDropdownMenuBox(
+            expanded = showGenderDropdown,
+            onExpandedChange = { onGenderDropdownToggle() }
+        ) {
+            OutlinedTextField(
+                value = when (editedGender.lowercase()) {
+                    "l", "laki-laki", "male" -> "Laki-laki"
+                    "p", "perempuan", "female" -> "Perempuan"
+                    else -> editedGender
+                },
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Jenis Kelamin") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showGenderDropdown)
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryPurple,
+                    focusedLabelColor = PrimaryPurple
+                )
+            )
+
+            ExposedDropdownMenu(
+                expanded = showGenderDropdown,
+                onDismissRequest = { onGenderDropdownToggle() }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Laki-laki") },
+                    onClick = { onGenderChange("Laki-laki") }
+                )
+                DropdownMenuItem(
+                    text = { Text("Perempuan") },
+                    onClick = { onGenderChange("Perempuan") }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Height and Weight Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = editedHeight,
+                onValueChange = { newValue ->
+                    // Only allow numbers
+                    val filtered = newValue.filter { it.isDigit() }
+                    onHeightChange(filtered)
+                },
+                label = { Text("Tinggi (cm)") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryPurple,
+                    focusedLabelColor = PrimaryPurple
+                )
+            )
+
+            OutlinedTextField(
+                value = editedWeight,
+                onValueChange = { newValue ->
+                    // Only allow numbers
+                    val filtered = newValue.filter { it.isDigit() }
+                    onWeightChange(filtered)
+                },
+                label = { Text("Berat (kg)") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryPurple,
+                    focusedLabelColor = PrimaryPurple
+                )
+            )
+        }
+
+        // BMI Preview if both height and weight are filled
+        val height = editedHeight.toIntOrNull()
+        val weight = editedWeight.toIntOrNull()
+        if (height != null && weight != null && height > 0 && weight > 0) {
+            Spacer(modifier = Modifier.height(16.dp))
+            val bmi = calculateBMI(weight, height)
+            val bmiCategory = getBMICategory(bmi)
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = LightPurple),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Preview BMI",
+                        fontSize = 12.sp,
+                        color = TextGray
+                    )
+                    Text(
+                        text = String.format("%.1f", bmi),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryPurple
+                    )
+                    Text(
+                        text = bmiCategory,
+                        fontSize = 14.sp,
+                        color = getBMICategoryColor(bmi),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileHeader(user: User) { Column(
+private fun DatePickerDialog(
+    onDateSelected: (Long?) -> Unit,
+    onDismiss: () -> Unit,
+    datePickerState: DatePickerState
+) {
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                onDateSelected(datePickerState.selectedDateMillis)
+            }) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    ) {
+        DatePicker(
+            state = datePickerState,
+            colors = DatePickerDefaults.colors(
+                selectedDayContainerColor = PrimaryPurple,
+                todayDateBorderColor = PrimaryPurple
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProfileHeader(user: User) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(VeryLightPurple)
@@ -127,6 +595,15 @@ private fun ProfileHeader(user: User) { Column(
             color = TextDark
         )
 
+        // Show username if available
+        if (!user.username.isNullOrEmpty()) {
+            Text(
+                text = "@${user.username}",
+                fontSize = 14.sp,
+                color = TextGray
+            )
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
@@ -136,6 +613,21 @@ private fun ProfileInfoSection(user: User) {
     Column(
         modifier = Modifier.padding(horizontal = 16.dp)
     ) {
+        // Email Card
+        ProfileInfoCard(
+            icon = Icons.Default.Email,
+            title = "Email",
+            value = user.email.ifEmpty { "Belum diisi" }
+        )
+
+        // Username Card (only show if username exists)
+        if (!user.username.isNullOrEmpty()) {
+            ProfileInfoCard(
+                icon = Icons.Default.AccountCircle,
+                title = "Username",
+                value = "@${user.username}"
+            )
+        }
 
         // Personal Info Cards
         ProfileInfoCard(
