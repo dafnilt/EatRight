@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Search
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.proyek.eatright.data.model.Food
 import com.proyek.eatright.ui.theme.DarkBlue
@@ -40,6 +43,13 @@ fun SearchScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val hasSearched = viewModel.hasSearched.collectAsState()
 
+    // Fungsi untuk melakukan pencarian
+    val performSearch = {
+        if (searchQuery.value.isNotEmpty()) {
+            viewModel.searchFoods(searchQuery.value)
+        }
+    }
+
     Scaffold(
 
     ) { innerPadding ->
@@ -59,15 +69,20 @@ fun SearchScreen(
                 placeholder = { Text("Cari makanan...") },
                 trailingIcon = {
                     IconButton(
-                        onClick = {
-                            if (searchQuery.value.isNotEmpty()) {
-                                viewModel.searchFoods(searchQuery.value)
-                            }
-                        }
+                        onClick = performSearch
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Cari")
                     }
-                }
+                },
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Search
+                ),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        performSearch()
+                    }
+                ),
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
