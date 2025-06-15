@@ -27,6 +27,7 @@ import com.proyek.eatright.ui.screen.LoginScreen
 import com.proyek.eatright.ui.screen.RegisterScreen
 import com.proyek.eatright.ui.screen.SplashScreen
 import com.proyek.eatright.ui.screen.OnboardingScreen
+import com.proyek.eatright.ui.screen.ProfileScreen
 import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
 import com.proyek.eatright.viewmodel.ConsumptionViewModel
@@ -51,10 +52,34 @@ fun AppNavigation() {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
+    // Tentukan startDestination berdasarkan auth state
+    val startDestination = when (authState) {
+        is AuthState.Authenticated -> "main"
+        is AuthState.Initial, is AuthState.Loading -> "splash"
+        else -> "splash" // Untuk Unauthenticated dan Error, mulai dari splash
+    }
+
+    // Handle navigation based on auth state changes
     LaunchedEffect(authState) {
-        if (authState == AuthState.Unauthenticated) {
-            navController.navigate("onboarding") {
-                popUpTo(0) { inclusive = true }
+        when (authState) {
+            is AuthState.Unauthenticated -> {
+                // Hanya navigasi jika bukan sedang di halaman auth
+                if (currentRoute !in listOf("login", "register", "onboarding", "splash")) {
+                    navController.navigate("splash") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            is AuthState.Authenticated -> {
+                // Navigasi ke main jika berhasil login/register dan tidak sedang di main
+                if (currentRoute !in listOf("main", "search", "consumption_summary", "food_detail/{foodId}", "profile")) {
+                    navController.navigate("main") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            else -> {
+                // Tidak melakukan navigasi otomatis untuk state lain
             }
         }
     }
@@ -126,22 +151,10 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "onboarding",
+            startDestination = "splash", // Selalu mulai dari splash
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Onboarding Screen as the first route
-            composable("onboarding") {
-                OnboardingScreen(
-                    navController = navController,
-                    onboardingComplete = {
-                        // Navigate to splash screen after completing onboarding
-                        navController.navigate("splash") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    }
-                )
-            }
-
+            // Splash screen akan menentukan kemana user diarahkan
             composable("splash") {
                 SplashScreen(
                     authState = authState,
@@ -153,6 +166,24 @@ fun AppNavigation() {
                     onNavigateToMain = {
                         navController.navigate("main") {
                             popUpTo("splash") { inclusive = true }
+                        }
+                    },
+                    onNavigateToOnboarding = {
+                        navController.navigate("onboarding") {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // Onboarding hanya untuk pengguna baru
+            composable("onboarding") {
+                OnboardingScreen(
+                    navController = navController,
+                    onboardingComplete = {
+                        // Navigate to login after completing onboarding
+                        navController.navigate("login") {
+                            popUpTo("onboarding") { inclusive = true }
                         }
                     }
                 )
@@ -179,6 +210,9 @@ fun AppNavigation() {
                     },
                     onConsumptionSummaryClick = {
                         navController.navigate("consumption_summary")
+                    },
+                    onProfileClick = {
+                        navController.navigate("profile")
                     },
                     viewModel = foodSearchViewModel,
                     authViewModel = authViewModel,
@@ -212,6 +246,14 @@ fun AppNavigation() {
             composable("consumption_summary") {
                 ConsumptionSummaryScreen(
                     onBack = { navController.popBackStack() },
+                )
+            }
+
+            // Profile Screen
+            composable("profile") {
+                ProfileScreen(
+                    onBack = { navController.popBackStack() },
+                    authViewModel = authViewModel
                 )
             }
         }
