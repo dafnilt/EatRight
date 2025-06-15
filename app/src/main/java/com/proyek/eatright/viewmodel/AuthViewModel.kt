@@ -3,6 +3,7 @@ package com.proyek.eatright.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.proyek.eatright.data.model.User
 import com.proyek.eatright.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,16 +61,22 @@ class AuthViewModel : ViewModel() {
                                 _authState.value = AuthState.Authenticated
                             },
                             onFailure = { exception ->
-                                _authState.value = AuthState.Error(exception.message ?: "Failed to load user data")
+                                _authState.value = AuthState.Error(
+                                    getFirebaseErrorMessage(exception)
+                                )
                             }
                         )
                     },
                     onFailure = { exception ->
-                        _authState.value = AuthState.Error(exception.message ?: "Login failed")
+                        _authState.value = AuthState.Error(
+                            getFirebaseErrorMessage(exception)
+                        )
                     }
                 )
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Login error: ${e.message}")
+                _authState.value = AuthState.Error(
+                    getFirebaseErrorMessage(e)
+                )
             }
         }
     }
@@ -84,11 +91,15 @@ class AuthViewModel : ViewModel() {
                         _authState.value = AuthState.Authenticated
                     },
                     onFailure = { exception ->
-                        _authState.value = AuthState.Error(exception.message ?: "Registration failed")
+                        _authState.value = AuthState.Error(
+                            getFirebaseErrorMessage(exception)
+                        )
                     }
                 )
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Registration error: ${e.message}")
+                _authState.value = AuthState.Error(
+                    getFirebaseErrorMessage(e)
+                )
             }
         }
     }
@@ -111,6 +122,35 @@ class AuthViewModel : ViewModel() {
                 AuthState.Unauthenticated
         } catch (e: Exception) {
             _authState.value = AuthState.Error("Error resetting state: ${e.message}")
+        }
+    }
+
+    private fun getFirebaseErrorMessage(exception: Throwable): String {
+        return when (exception) {
+            is FirebaseAuthException -> {
+                when (exception.errorCode) {
+                    "ERROR_INVALID_EMAIL" -> "Format email tidak valid"
+                    "ERROR_WRONG_PASSWORD" -> "Password salah"
+                    "ERROR_USER_NOT_FOUND" -> "Email tidak terdaftar"
+                    "ERROR_USER_DISABLED" -> "Akun telah dinonaktifkan"
+                    "ERROR_TOO_MANY_REQUESTS" -> "Terlalu banyak percobaan. Coba lagi nanti"
+                    "ERROR_EMAIL_ALREADY_IN_USE" -> "Email sudah terdaftar"
+                    "ERROR_WEAK_PASSWORD" -> "Password terlalu lemah"
+                    "ERROR_OPERATION_NOT_ALLOWED" -> "Operasi tidak diizinkan"
+                    "ERROR_NETWORK_REQUEST_FAILED" -> "Koneksi internet bermasalah"
+                    "ERROR_INVALID_CREDENTIAL" -> "Email atau password salah"
+                    else -> exception.message ?: "Terjadi kesalahan pada Firebase Auth"
+                }
+            }
+            else -> {
+                when {
+                    exception.message?.contains("network", ignoreCase = true) == true ->
+                        "Koneksi internet bermasalah"
+                    exception.message?.contains("timeout", ignoreCase = true) == true ->
+                        "Koneksi timeout. Periksa koneksi internet Anda"
+                    else -> exception.message ?: "Terjadi kesalahan tidak diketahui"
+                }
+            }
         }
     }
 }
