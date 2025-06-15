@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.proyek.eatright.viewmodel.AuthState
 import com.proyek.eatright.viewmodel.AuthViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +29,7 @@ fun LoginScreen(
     val authState by viewModel.authState.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -56,9 +58,8 @@ fun LoginScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center // Ini akan menempatkan konten di tengah vertikal
+            verticalArrangement = Arrangement.Center
         ) {
-            // App name
             Text(
                 text = "EatRight",
                 style = MaterialTheme.typography.headlineLarge,
@@ -69,7 +70,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Email field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -79,17 +79,16 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(30.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFE6EEFF),  // Light blue background
+                    focusedContainerColor = Color(0xFFE6EEFF),
                     unfocusedContainerColor = Color(0xFFE6EEFF),
                     disabledContainerColor = Color(0xFFE6EEFF),
-                    focusedIndicatorColor = Color.Transparent,  // No indicator/underline
+                    focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Password field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -100,21 +99,29 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(30.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFE6EEFF),  // Light blue background
+                    focusedContainerColor = Color(0xFFE6EEFF),
                     unfocusedContainerColor = Color(0xFFE6EEFF),
                     disabledContainerColor = Color(0xFFE6EEFF),
-                    focusedIndicatorColor = Color.Transparent,  // No indicator/underline
+                    focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Login button
             Button(
                 onClick = {
                     if (email.isNotEmpty() && password.isNotEmpty()) {
                         viewModel.login(email, password)
+                    } else {
+                        val message = when {
+                            email.isEmpty() && password.isEmpty() -> "Email dan Password belum diisi"
+                            email.isEmpty() -> "Email belum diisi"
+                            else -> "Password belum diisi"
+                        }
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(message)
+                        }
                     }
                 },
                 modifier = Modifier
@@ -122,7 +129,7 @@ fun LoginScreen(
                     .height(50.dp),
                 shape = RoundedCornerShape(25.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6E66FA) // Warna biru-ungu seperti pada gambar
+                    containerColor = Color(0xFF6E66FA)
                 )
             ) {
                 if (authState is AuthState.Loading) {
@@ -142,13 +149,12 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Register text
             TextButton(
                 onClick = { navController.navigate("register") }
             ) {
                 Text(
                     "Don't have an account? Register",
-                    color = Color(0xFF6E66FA), // Warna biru-ungu seperti pada gambar
+                    color = Color(0xFF6E66FA),
                     textAlign = TextAlign.Center
                 )
             }
