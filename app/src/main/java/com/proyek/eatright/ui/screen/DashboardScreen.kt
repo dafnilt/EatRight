@@ -224,9 +224,11 @@ fun DashboardScreen(
                     title = "Kalori",
                     value = totalCalories.toInt().toString(),
                     unit = "kkal",
-                    color = LightBlue2,
-                    progress = if (recommendedCalories > 0) (totalCalories / recommendedCalories).toFloat().coerceIn(0f, 1f) else 0f,
-                    recommendation = "Target:\n ${recommendedCalories} kkal/hari",
+                    color = DarkBlue,
+                    progress = if (recommendedCalories > 0) {
+                        (totalCalories.toFloat() / recommendedCalories.toFloat()).coerceIn(0f, 1f)
+                    } else 0f,
+                    recommendation = "\nTarget:\n ${recommendedCalories} kkal/hari",
                     modifier = Modifier.weight(1f)
                 )
 
@@ -238,9 +240,9 @@ fun DashboardScreen(
                     title = "Karbohidrat",
                     value = String.format("%.1f", totalCarbs),
                     unit = "g",
-                    color = Yellow.copy(alpha = 0.7f),
+                    color = Yellow,
                     progress = if (recommendedCarbsMax > 0) (totalCarbs / recommendedCarbsMax).toFloat().coerceIn(0f, 1f) else 0f,
-                    recommendation = "Target:\n${recommendedCarbsMin}-${recommendedCarbsMax}g/hari",
+                    recommendation = "\nTarget:\n${recommendedCarbsMin}-${recommendedCarbsMax}g/hari",
                     modifier = Modifier.weight(1f)
                 )
 
@@ -253,7 +255,7 @@ fun DashboardScreen(
                     unit = "g",
                     color = Pink80,
                     progress = (totalSugar / recommendedSugarMax).toFloat().coerceIn(0f, 1f),
-                    recommendation = "Target:\nMaks. ${recommendedSugarMax}g/hari",
+                    recommendation = "\nMaks.\n${recommendedSugarMax}g/hari",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -425,12 +427,13 @@ fun CircularNutritionCardInDashboard(
                         .background(color.copy(alpha = 0.1f))
                 )
 
-                // Progress indicator
+                // Progress indicator - dinamis berdasarkan progress value
                 CircularProgressIndicator(
-                    progress = progress,
+                    progress = progress.coerceIn(0f, 1f), // Pastikan progress tidak lebih dari 1
                     modifier = Modifier.size(70.dp),
                     color = color,
-                    strokeWidth = 6.dp
+                    strokeWidth = 6.dp,
+                    trackColor = color.copy(alpha = 0.2f) // Tambahkan track color agar terlihat background lingkaran
                 )
 
                 // Value text
@@ -453,15 +456,30 @@ fun CircularNutritionCardInDashboard(
                 }
             }
 
-            // Recommendation text
-            Text(
-                text = recommendation,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF666666),
-                textAlign = TextAlign.Center,
-                fontSize = 10.sp,
-                lineHeight = 12.sp
-            )
+            // Recommendation text with percentage
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Percentage text
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp
+                )
+
+                Text(
+                    text = recommendation,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF666666),
+                    textAlign = TextAlign.Center,
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp
+                )
+
+
+            }
         }
     }
 }
