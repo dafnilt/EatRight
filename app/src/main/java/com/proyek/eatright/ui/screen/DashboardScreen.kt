@@ -148,7 +148,7 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Target Ideal Kamu",
+                text = "Ayo capai kalori idealmu!",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
